@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "catalogos": {
+    "tipos_negocio": [
+      "SECOS",
+      "FRÍOS"
+    ]
+  },
+  "countries": {
+    "SLV": {
+      "clients": {
+        "DOCTOR SV": {
+          "db_name": "DOCTOR SV",
+          "aliases": [
+            "DOCTOR SV",
+            "DOCTORSV",
+            "DOCTOR-SV",
+            "DOCTOR SV.",
+            "DOCTOR SV TELEMEDICINA",
+            "DR SV",
+            "TELEMEDICINA",
+            "TELEMEDICINA."
+          ],
+          "ready_for_upload": false,
+          "negocios": [
+            {
+              "tipo": "SECOS",
+              "rubro": "",
+              "sedes": [
+                "SANTA ELENA"
+              ]
+            }
+          ]
+        },
+        "CALLEJA S.A": {
+          "db_name": "CALLEJA S.A",
+          "aliases": [
+            "CALLEJA",
+            "CALLEJAS",
+            "CALLEJA S.A",
+            "CALLEJA S.A.",
+            "CALLEJA SA",
+            "CALLEJA S A"
+          ],
+          "ready_for_upload": false,
+          "negocios": [
+            {
+              "tipo": "FRÍOS",
+              "rubro": "",
+              "sedes": [
+                "RANSA APOPA"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "PER": {
+      "clients": {}
+    }
+  }
+}

@@ -1,0 +1,24 @@
+﻿.env
+clave_ambitos_carga.json
+__pycache__/
+*.pyc
+*.bak
+*.bak_*
+*.bak-*
+build/
+dist/
+salidas/
+
+# =========================
+# Archivos locales / temporales
+# =========================
+codigo_proyecto.txt
+env_variables_seguras.txt
+data_test.xlsx
+
+
+# Permitir plantilla de variables de entorno
+!.env.example
+
+# Permitir plantilla de variables de entorno
+!.env.example
