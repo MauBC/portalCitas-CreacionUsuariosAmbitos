@@ -1,43 +1,303 @@
-﻿import json
-import os
+from pathlib import Path
+import json
 import re
 import unicodedata
 
 
 class AmbitosConfigService:
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(
+        self,
+        config_path=None,
+    ):
+        project_root = (
+            Path(__file__)
+            .resolve()
+            .parents[2]
+        )
 
-        if config_path is None:
-            config_path = os.path.abspath(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "..",
-                    "config",
-                    "ambitos_config.json",
-                )
+        self.config_path = Path(
+            config_path
+            or project_root
+            / "app"
+            / "config"
+            / "ambitos_config.json"
+        )
+
+        self.config = self._load()
+
+    def _load(self) -> dict:
+        if not self.config_path.exists():
+            raise FileNotFoundError(
+                f"No existe configuracion: "
+                f"{self.config_path}"
             )
 
-        self.config_path = config_path
-
-        with open(
-            self.config_path,
+        with self.config_path.open(
             "r",
             encoding="utf-8-sig",
         ) as file:
-            self.config = json.load(file)
+            return json.load(file)
 
-    # ==========================================================
-    # NORMALIZACION
-    # ==========================================================
+    def get_country_clients(
+        self,
+        country_code: str,
+    ) -> dict:
+        country_code = self._normalize(
+            country_code
+        )
+
+        return (
+            self.config
+            .get("countries", {})
+            .get(country_code, {})
+            .get("clients", {})
+        )
+
+    def get_clients(
+        self,
+        country_code: str,
+    ) -> dict:
+        return self.get_country_clients(
+            country_code
+        )
+
+    def normalize(
+        self,
+        value,
+    ) -> str:
+        return self._normalize_alias(
+            value
+        )
+
+    def resolve_alias(
+        self,
+        country_code: str,
+        value,
+    ):
+        target = self._normalize_alias(
+            value
+        )
+
+        if not target:
+            return None
+
+        clients = self.get_country_clients(
+            country_code
+        )
+
+        for canonical, config in clients.items():
+            candidates = [
+                canonical,
+                config.get("db_name"),
+                *config.get("aliases", []),
+            ]
+
+            for candidate in candidates:
+                if (
+                    self._normalize_alias(
+                        candidate
+                    )
+                    == target
+                ):
+                    return canonical
+
+        return None
+
+    def get_client_config(
+        self,
+        country_code: str,
+        value,
+    ):
+        canonical = self.resolve_alias(
+            country_code,
+            value,
+        )
+
+        if canonical:
+            config = (
+                self.get_country_clients(
+                    country_code
+                )
+                .get(canonical)
+            )
+
+            if config:
+                return {
+                    "canonical": canonical,
+                    "config": config,
+                }
+
+        target = self._normalize_alias(
+            value
+        )
+
+        for canonical, config in (
+            self.get_country_clients(
+                country_code
+            ).items()
+        ):
+            db_name = (
+                config.get("db_name")
+                or canonical
+            )
+
+            if (
+                self._normalize_alias(
+                    db_name
+                )
+                == target
+            ):
+                return {
+                    "canonical": canonical,
+                    "config": config,
+                }
+
+        return None
+
+    def get_client_names(
+        self,
+        country_code: str,
+    ) -> list[str]:
+        return list(
+            self.get_country_clients(
+                country_code
+            ).keys()
+        )
+
+    def get_tipo_negocio_rows(
+        self,
+    ) -> list[dict]:
+        rows = (
+            self.config
+            .get("catalogos", {})
+            .get(
+                "tipo_negocio_nuevo",
+                [],
+            )
+        )
+
+        return [
+            dict(row)
+            for row in rows
+        ]
+
+    def get_sede_rows(
+        self,
+        country_code: str,
+    ) -> list[dict]:
+        rows = []
+
+        for _, config in (
+            self.get_country_clients(
+                country_code
+            ).items()
+        ):
+            sede_group = config.get(
+                "sede_group"
+            )
+
+            sede = config.get(
+                "sede"
+            )
+
+            tipo = config.get(
+                "sede_tipo_negocio"
+            )
+
+            if (
+                sede_group is not None
+                and sede
+                and tipo
+            ):
+                rows.append({
+                    "Grupo": int(sede_group),
+                    "Sede": str(sede).strip(),
+                    "Tipo de negocio":
+                        str(tipo).strip(),
+                })
+
+        return sorted(
+            rows,
+            key=lambda row: row["Grupo"],
+        )
+
+    def get_relation_group(
+        self,
+        country_code: str,
+        client_name,
+    ):
+        item = self.get_client_config(
+            country_code,
+            client_name,
+        )
+
+        if not item:
+            return None
+
+        value = item["config"].get(
+            "relation_group"
+        )
+
+        return (
+            int(value)
+            if value is not None
+            else None
+        )
+
+    def get_business_group(
+        self,
+        country_code: str,
+        client_name,
+    ):
+        item = self.get_client_config(
+            country_code,
+            client_name,
+        )
+
+        if not item:
+            return None
+
+        value = item["config"].get(
+            "tipo_negocio_group"
+        )
+
+        return (
+            int(value)
+            if value is not None
+            else None
+        )
+
+    def get_sede_group(
+        self,
+        country_code: str,
+        client_name,
+    ):
+        item = self.get_client_config(
+            country_code,
+            client_name,
+        )
+
+        if not item:
+            return None
+
+        value = item["config"].get(
+            "sede_group"
+        )
+
+        return (
+            int(value)
+            if value is not None
+            else None
+        )
 
     @staticmethod
-    def normalize(value) -> str:
-
-        if value is None:
-            return ""
-
-        text = str(value).strip().upper()
+    def _normalize_alias(
+        value,
+    ) -> str:
+        text = str(
+            value or ""
+        ).strip().upper()
 
         text = unicodedata.normalize(
             "NFKD",
@@ -60,240 +320,11 @@ class AmbitosConfigService:
             text.split()
         )
 
-    # ==========================================================
-    # CLIENTES
-    # ==========================================================
-
-    def get_country_config(
-        self,
-        country: str,
-    ) -> dict:
-
-        country = self.normalize(country)
-
-        return (
-            self.config
-            .get("countries", {})
-            .get(country, {})
+    @staticmethod
+    def _normalize(value) -> str:
+        return " ".join(
+            str(value or "")
+            .strip()
+            .upper()
+            .split()
         )
-
-    def get_clients(
-        self,
-        country: str,
-    ) -> dict:
-
-        return (
-            self.get_country_config(country)
-            .get("clients", {})
-        )
-
-    def resolve_alias(
-        self,
-        country: str,
-        value: str,
-    ) -> str | None:
-
-        query = self.normalize(value)
-
-        if not query:
-            return None
-
-        clients = self.get_clients(country)
-
-        for canonical, config in clients.items():
-
-            candidates = [
-                canonical,
-                config.get(
-                    "db_name",
-                    canonical,
-                ),
-            ]
-
-            candidates.extend(
-                config.get(
-                    "aliases",
-                    []
-                )
-            )
-
-            for candidate in candidates:
-
-                if self.normalize(candidate) == query:
-                    return canonical
-
-        return None
-
-    def get_client_config(
-        self,
-        country: str,
-        client: str,
-    ) -> dict | None:
-
-        canonical = (
-            self.resolve_alias(
-                country,
-                client,
-            )
-            or client
-        )
-
-        clients = self.get_clients(country)
-
-        return clients.get(canonical)
-
-    # ==========================================================
-    # CONSTRUCCION DE CATALOGOS
-    # ==========================================================
-
-    def build_catalogs(
-        self,
-        country: str,
-        client_names: list[str],
-    ) -> dict:
-
-        business_rows = []
-        sede_rows = []
-
-        business_groups = {}
-        sede_groups = {}
-
-        client_business_groups = {}
-        client_sede_groups = {}
-
-        business_counter = 1
-        sede_counter = 1
-
-        for client_name in client_names:
-
-            canonical = (
-                self.resolve_alias(
-                    country,
-                    client_name,
-                )
-                or client_name
-            )
-
-            client_config = self.get_client_config(
-                country,
-                canonical,
-            )
-
-            if not client_config:
-                continue
-
-            client_business_groups.setdefault(
-                canonical,
-                [],
-            )
-
-            client_sede_groups.setdefault(
-                canonical,
-                [],
-            )
-
-            for business in client_config.get(
-                "negocios",
-                []
-            ):
-
-                tipo = str(
-                    business.get("tipo") or ""
-                ).strip()
-
-                rubro = str(
-                    business.get("rubro") or ""
-                ).strip()
-
-                business_key = (
-                    self.normalize(tipo),
-                    self.normalize(rubro),
-                )
-
-                if business_key not in business_groups:
-
-                    business_groups[
-                        business_key
-                    ] = business_counter
-
-                    business_rows.append({
-                        "Grupo":
-                            business_counter,
-                        "Tipo de negocio":
-                            tipo,
-                        "Rubro":
-                            rubro,
-                    })
-
-                    business_counter += 1
-
-                negocio_group = business_groups[
-                    business_key
-                ]
-
-                if negocio_group not in client_business_groups[
-                    canonical
-                ]:
-                    client_business_groups[
-                        canonical
-                    ].append(
-                        negocio_group
-                    )
-
-                for sede in business.get(
-                    "sedes",
-                    []
-                ):
-
-                    sede = str(
-                        sede
-                    ).strip()
-
-                    sede_key = (
-                        self.normalize(sede),
-                        self.normalize(tipo),
-                    )
-
-                    if sede_key not in sede_groups:
-
-                        sede_groups[
-                            sede_key
-                        ] = sede_counter
-
-                        sede_rows.append({
-                            "Grupo":
-                                sede_counter,
-                            "Sede":
-                                sede,
-                            "Tipo de negocio":
-                                tipo,
-                        })
-
-                        sede_counter += 1
-
-                    sede_group = sede_groups[
-                        sede_key
-                    ]
-
-                    if sede_group not in client_sede_groups[
-                        canonical
-                    ]:
-                        client_sede_groups[
-                            canonical
-                        ].append(
-                            sede_group
-                        )
-
-        return {
-            "tipo_negocio_nuevo":
-                business_rows,
-
-            "sede_nueva":
-                sede_rows,
-
-            "client_business_groups":
-                client_business_groups,
-
-            "client_sede_groups":
-                client_sede_groups,
-        }

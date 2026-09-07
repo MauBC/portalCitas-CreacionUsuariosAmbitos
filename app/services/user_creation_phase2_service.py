@@ -1,14 +1,19 @@
-﻿import glob
+import glob
 import os
+
 import pandas as pd
 
-from app.services.portal_user_result_service import PortalUserResultService
+from app.services.portal_user_result_service import (
+    PortalUserResultService,
+)
 
 
 class UserCreationPhase2Service:
 
     def __init__(self):
-        self.portal_service = PortalUserResultService()
+        self.portal_service = (
+            PortalUserResultService()
+        )
 
     def preview(
         self,
@@ -18,115 +23,62 @@ class UserCreationPhase2Service:
 
         manifest_path = os.path.join(
             run_folder,
-            "usuarios_enviados.xlsx"
+            "usuarios_enviados.xlsx",
         )
 
-        if not os.path.exists(manifest_path):
+        if not os.path.exists(
+            manifest_path
+        ):
             raise FileNotFoundError(
-                f"No existe manifiesto: {manifest_path}"
+                f"No existe manifiesto: "
+                f"{manifest_path}"
             )
 
         sent_users = pd.read_excel(
             manifest_path,
-            dtype=str
+            dtype=str,
         )
 
-        # Resultado de usuarios que SI fueron enviados al portal
-        portal_result = self.portal_service.process(
-            sent_users=sent_users,
-            error_excel_path=portal_error_excel,
-        )
-
-        portal_result["origen"] = "PORTAL"
-
-        # -----------------------------------------------------
-        # Usuarios rechazados antes de llegar al portal
-        # -----------------------------------------------------
-
-        error_files = glob.glob(
-            os.path.join(
-                run_folder,
-                "reporte_ERRORES_*.xlsx"
+        portal_result = (
+            self.portal_service.process(
+                sent_users=sent_users,
+                error_excel_path=portal_error_excel,
             )
         )
 
-        local_results = []
+        portal_result["origen"] = (
+            "PORTAL"
+        )
 
-        if error_files:
-
-            error_files.sort(
-                key=os.path.getmtime,
-                reverse=True
+        portal_result = (
+            self._enrich_portal_result(
+                portal_result=portal_result,
+                run_folder=run_folder,
             )
+        )
 
-            local_error_path = error_files[0]
-
-            # Los reportes nuevos guardan toda la informacion
-            # necesaria para procesamiento en DATOS_TECNICOS.
-            #
-            # Se conserva compatibilidad con reportes antiguos
-            # que utilizaban la hoja ERRORES.
-
-            workbook = pd.ExcelFile(
-                local_error_path
+        local_errors = (
+            self._load_local_errors(
+                run_folder
             )
+        )
 
-            if "DATOS_TECNICOS" in workbook.sheet_names:
-                sheet_name = "DATOS_TECNICOS"
-
-            elif "ERRORES" in workbook.sheet_names:
-                sheet_name = "ERRORES"
-
-            else:
-                sheet_name = workbook.sheet_names[0]
-
-            local_errors = pd.read_excel(
-                local_error_path,
-                sheet_name=sheet_name,
-                dtype=str
-            )
-
-            for _, row in local_errors.iterrows():
-
-                item_id = str(
-                    row.get("_item_id") or ""
-                ).strip()
-
-                email = str(
-                    row.get("email") or ""
-                ).strip().lower()
-
-                mensaje = str(
-                    row.get("observaciones") or ""
-                ).strip()
-
-                if not item_id:
-                    continue
-
-                local_results.append({
-                    "_item_id": item_id,
-                    "email": email,
-                    "creado": 2,
-                    "mensaje_error": mensaje,
-                    "origen": "VALIDACION_LOCAL",
-                })
-
-        if local_results:
-
-            local_df = pd.DataFrame(
-                local_results
-            )
+        if not local_errors.empty:
 
             final = pd.concat(
                 [
                     portal_result,
-                    local_df,
+                    local_errors,
                 ],
-                ignore_index=True
+                ignore_index=True,
+                sort=False,
             )
 
         else:
-            final = portal_result.copy()
+
+            final = (
+                portal_result.copy()
+            )
 
         final["_item_id"] = (
             final["_item_id"]
@@ -134,5 +86,186 @@ class UserCreationPhase2Service:
             .str.strip()
         )
 
+        final["email"] = (
+            final["email"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+        )
+
         return final
 
+    def _enrich_portal_result(
+        self,
+        portal_result,
+        run_folder,
+    ):
+
+        valid_files = glob.glob(
+            os.path.join(
+                run_folder,
+                "reporte_VALIDOS_*.xlsx",
+            )
+        )
+
+        if not valid_files:
+            return portal_result
+
+        valid_files.sort(
+            key=os.path.getmtime,
+            reverse=True,
+        )
+
+        valid_path = (
+            valid_files[0]
+        )
+
+        workbook = pd.ExcelFile(
+            valid_path
+        )
+
+        if (
+            "DATOS_TECNICOS"
+            not in workbook.sheet_names
+        ):
+            return portal_result
+
+        source = pd.read_excel(
+            valid_path,
+            sheet_name="DATOS_TECNICOS",
+            dtype=str,
+        )
+
+        if (
+            "_item_id"
+            not in source.columns
+        ):
+            return portal_result
+
+        source["_item_id"] = (
+            source["_item_id"]
+            .astype(str)
+            .str.strip()
+        )
+
+        extra_columns = [
+            column
+            for column in source.columns
+            if (
+                column not in portal_result.columns
+                and column != "_item_id"
+            )
+        ]
+
+        if not extra_columns:
+            return portal_result
+
+        source = source[
+            [
+                "_item_id",
+                *extra_columns,
+            ]
+        ].drop_duplicates(
+            subset=["_item_id"]
+        )
+
+        return portal_result.merge(
+            source,
+            on="_item_id",
+            how="left",
+        )
+
+    def _load_local_errors(
+        self,
+        run_folder,
+    ):
+
+        error_files = glob.glob(
+            os.path.join(
+                run_folder,
+                "reporte_ERRORES_*.xlsx",
+            )
+        )
+
+        if not error_files:
+            return pd.DataFrame()
+
+        error_files.sort(
+            key=os.path.getmtime,
+            reverse=True,
+        )
+
+        path = error_files[0]
+
+        workbook = pd.ExcelFile(
+            path
+        )
+
+        if (
+            "DATOS_TECNICOS"
+            in workbook.sheet_names
+        ):
+            sheet_name = (
+                "DATOS_TECNICOS"
+            )
+
+        elif (
+            "ERRORES"
+            in workbook.sheet_names
+        ):
+            sheet_name = "ERRORES"
+
+        else:
+            sheet_name = (
+                workbook.sheet_names[0]
+            )
+
+        source = pd.read_excel(
+            path,
+            sheet_name=sheet_name,
+            dtype=str,
+        )
+
+        rows = []
+
+        for _, row in source.iterrows():
+
+            item_id = str(
+                row.get("_item_id") or ""
+            ).strip()
+
+            if not item_id:
+                continue
+
+            record = row.to_dict()
+
+            record.update({
+                "_item_id":
+                    item_id,
+                "email":
+                    str(
+                        row.get("email") or ""
+                    ).strip().lower(),
+                "creado":
+                    2,
+                "estado_portal":
+                    "NO_ENVIADO",
+                "mensaje_error":
+                    str(
+                        row.get(
+                            "observaciones"
+                        )
+                        or ""
+                    ).strip(),
+                "origen":
+                    "VALIDACION_LOCAL",
+            })
+
+            rows.append(
+                record
+            )
+
+        return pd.DataFrame(
+            rows
+        )

@@ -1,5 +1,4 @@
-﻿import os
-import pandas as pd
+import os
 
 from app.services.user_creation_phase2_service import (
     UserCreationPhase2Service

@@ -1,4 +1,4 @@
-﻿import os
+import os
 import pandas as pd
 
 
@@ -32,6 +32,9 @@ class UserCreationManifestService:
             "nombre",
             "apellido",
             "nombre_proveedor",
+            "nit_proveedor",
+            "nombre_cliente",
+            "perfil",
         ]
 
         for col in optional_columns:

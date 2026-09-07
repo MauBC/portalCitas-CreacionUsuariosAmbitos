@@ -1,15 +1,30 @@
 ﻿import re
+
 import pandas as pd
+
+from app.config.country_data_rules import (
+    COUNTRY_DATA_RULES,
+)
+from app.services.common_cleaning_service import (
+    CommonCleaningService,
+)
 
 
 class PerCleaningService:
-
-    PERFILES_VALIDOS = {"RANSA", "CLIENTE", "PROVEEDOR"}
+    PERFILES_VALIDOS = {
+        "RANSA",
+        "CLIENTE",
+        "PROVEEDOR",
+    }
 
     REQUIRED_COLUMNS = [
+        "_item_id",
+        "pais",
+        "creado",
         "tipo_documento",
         "numero_documento",
         "nombre",
+        "apellido",
         "apellido_pat",
         "apellido_mat",
         "email",
@@ -25,247 +40,388 @@ class PerCleaningService:
         "ruc_proveedor",
     ]
 
-    COLUMNS_SKIP_GENERAL_NORMALIZATION = {
-        "nombre_cliente",
-    }
+    def __init__(self):
+        self.common = CommonCleaningService()
+        self.rules = COUNTRY_DATA_RULES["PER"]
 
-    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
+    def clean(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        result = df.copy()
 
-        # asegurar columnas esperadas
-        for col in self.REQUIRED_COLUMNS:
-            if col not in df.columns:
-                df[col] = None
+        for column in self.REQUIRED_COLUMNS:
+            if column not in result.columns:
+                result[column] = ""
 
-        # limpieza general, evitando columnas que se usaran para match semantico
-        df = self._normalize_text(df)
+        result["pais"] = "PER"
+        result["tipo_documento"] = "DNI"
 
-        df["email"] = df["email"].apply(self._safe_apply(self._clean_email))
-
-        for col in ["nombre", "apellido_pat", "apellido_mat"]:
-            df[col] = df[col].apply(self._safe_apply(self._clean_name))
-
-        df["numero_documento"] = df["numero_documento"].apply(
-            self._safe_apply(self._normalize_integer_id)
+        result["_numero_documento_original"] = (
+            result["numero_documento"].copy()
+        )
+        result["_ruc_cliente_original"] = (
+            result["ruc_cliente"].copy()
+        )
+        result["_ruc_proveedor_original"] = (
+            result["ruc_proveedor"].copy()
         )
 
-        df["ruc_cliente"] = df["ruc_cliente"].apply(
-            self._safe_apply(self._normalize_integer_id)
+        for column in [
+            "nombre",
+            "apellido",
+            "apellido_pat",
+            "apellido_mat",
+            "nombre_cliente",
+            "nombre_proveedor",
+            "negocio",
+            "tipo_cargo",
+        ]:
+            result[column] = result[column].apply(
+                self.common.clean_text
+            )
+
+        result["email"] = result["email"].apply(
+            self.common.clean_email
         )
 
-        df["ruc_proveedor"] = df["ruc_proveedor"].apply(
-            self._safe_apply(self._normalize_integer_id)
+        for column in [
+            "numero_documento",
+            "ruc_cliente",
+            "ruc_proveedor",
+            "num_telefono",
+        ]:
+            result[column] = result[column].apply(
+                self.common.clean_digits
+            )
+
+        result["perfil"] = result["perfil"].apply(
+            self.common.clean_text
         )
 
-        df["num_telefono"] = df["num_telefono"].apply(
-            self._safe_apply(self._normalize_phone)
+        result["dni_valido"] = (
+            result["numero_documento"]
+            .apply(
+                lambda value:
+                    self.common.valid_exact_digits(
+                        value,
+                        self.rules[
+                            "person_document_length"
+                        ],
+                    )
+            )
         )
 
-        df["tipo_telefono"] = df["num_telefono"].apply(
-            self._safe_apply(self._clasificar_telefono, default="INVALIDO")
+        result["correo_valido"] = (
+            result["email"]
+            .apply(
+                self.common.valid_email
+            )
         )
 
-        df["perfil"] = df["perfil"].apply(
-            self._safe_apply(self._normalize_perfil)
+        result["ruc_cliente_valido"] = (
+            result.apply(
+                lambda row:
+                    self._valid_ruc(
+                        clean_value=row.get(
+                            "ruc_cliente"
+                        ),
+                        original_value=row.get(
+                            "_ruc_cliente_original"
+                        ),
+                    ),
+                axis=1,
+            )
         )
 
-        df["dni_valido"] = df["numero_documento"].apply(
-            self._safe_apply(self._validar_dni, default=False)
+        result["ruc_proveedor_valido"] = (
+            result.apply(
+                lambda row:
+                    self._valid_ruc(
+                        clean_value=row.get(
+                            "ruc_proveedor"
+                        ),
+                        original_value=row.get(
+                            "_ruc_proveedor_original"
+                        ),
+                    ),
+                axis=1,
+            )
         )
 
-        df["correo_valido"] = df["email"].apply(
-            self._safe_apply(self._validar_correo, default=False)
+        validation = result.apply(
+            self._validate_row,
+            axis=1,
+            result_type="expand",
         )
 
-        df["ruc_cliente_valido"] = df["ruc_cliente"].apply(
-            self._safe_apply(self._validar_ruc, default=False)
+        result["observaciones"] = (
+            validation["errores"]
+        )
+        result["advertencias"] = (
+            validation["advertencias"]
         )
 
-        df["ruc_proveedor_valido"] = df["ruc_proveedor"].apply(
-            self._safe_apply(self._validar_ruc, default=False)
+        result["estado"] = (
+            result["observaciones"]
+            .apply(
+                lambda value:
+                    "OK"
+                    if not str(value or "").strip()
+                    else "ERROR"
+            )
         )
 
-        df["observaciones"] = df.apply(self._build_observaciones, axis=1)
+        return result
 
-        df["estado"] = df["observaciones"].apply(
-            lambda x: "OK" if self._is_empty(x) else "ERROR"
+    def _valid_ruc(
+        self,
+        clean_value,
+        original_value,
+    ) -> bool:
+        if not self.common.numeric_input_has_valid_chars(
+            original_value
+        ):
+            return False
+
+        return self.common.valid_exact_digits(
+            clean_value,
+            self.rules[
+                "company_document_length"
+            ],
         )
 
-        return df
+    def _validate_row(
+        self,
+        row,
+    ) -> pd.Series:
+        errors = []
+        warnings = []
 
-    def _safe_apply(self, func, default=None):
-        def wrapper(value):
-            try:
-                return func(value)
-            except Exception:
-                return default
-        return wrapper
+        nombre = str(
+            row.get("nombre") or ""
+        ).strip()
 
-    def _is_empty(self, value) -> bool:
-        if pd.isna(value):
-            return True
-        return str(value).strip() == ""
+        apellido = self._get_paternal_last_name(
+            row
+        )
 
-    def _safe_str(self, value) -> str:
-        if pd.isna(value):
-            return ""
-        return str(value).strip()
+        email = str(
+            row.get("email") or ""
+        ).strip()
 
-    def _normalize_text(self, df: pd.DataFrame) -> pd.DataFrame:
-        for col in df.columns:
-            if col in self.COLUMNS_SKIP_GENERAL_NORMALIZATION:
-                continue
-            df[col] = df[col].apply(self._safe_apply(self._clean_value))
-        return df
+        document = str(
+            row.get("numero_documento")
+            or ""
+        ).strip()
 
-    def _clean_value(self, value):
-        text = self._safe_str(value)
-        if not text:
-            return None
+        original_document = str(
+            row.get("_numero_documento_original")
+            or ""
+        ).strip()
 
-        text = re.sub(r"\s+", " ", text)
-        return text.upper() if text else None
+        profile = str(
+            row.get("perfil") or ""
+        ).strip()
 
-    def _clean_email(self, correo):
-        text = self._safe_str(correo)
-        if not text:
-            return None
+        if not nombre:
+            errors.append(
+                "NOMBRE OBLIGATORIO"
+            )
 
-        text = text.replace(" ", "")
-        return text.lower() if text else None
+        if not apellido:
+            errors.append(
+                "APELLIDO PATERNO OBLIGATORIO"
+            )
 
-    def _clean_name(self, value):
-        text = self._safe_str(value)
-        if not text:
-            return None
+        if not email:
+            errors.append(
+                "CORREO OBLIGATORIO"
+            )
+        elif not bool(
+            row.get("correo_valido")
+        ):
+            errors.append(
+                "CORREO INVALIDO"
+            )
 
-        text = re.sub(r"[^A-Za-zÃÃ‰ÃÃ“ÃšÃ‘Ã¡Ã©Ã­Ã³ÃºÃ± ]", "", text)
-        text = re.sub(r"\s+", " ", text).strip()
+        if not original_document:
+            errors.append(
+                "DNI OBLIGATORIO"
+            )
+        elif not bool(
+            row.get("dni_valido")
+        ):
+            warnings.append(
+                "DNI CON FORMATO INUSUAL"
+            )
 
-        return text.upper() if text else None
+        phone = str(
+            row.get("num_telefono")
+            or ""
+        ).strip()
 
-    def _normalize_integer_id(self, value):
-        text = self._safe_str(value)
-        if not text:
-            return None
+        if phone and not self._valid_phone(
+            phone
+        ):
+            warnings.append(
+                "TELEFONO CON FORMATO INUSUAL"
+            )
 
-        if re.fullmatch(r"\d+\.0", text):
-            text = text[:-2]
+        if profile not in self.PERFILES_VALIDOS:
+            errors.append(
+                "TIPO DE USUARIO INVALIDO"
+            )
 
-        digits = re.sub(r"\D", "", text)
-        return digits if digits else None
+        elif profile == "PROVEEDOR":
+            self._validate_provider(
+                row,
+                errors,
+            )
 
-    def _normalize_phone(self, telefono):
-        text = self._safe_str(telefono)
-        if not text:
-            return None
+        elif profile == "CLIENTE":
+            self._validate_client(
+                row,
+                errors,
+            )
 
-        digits = re.sub(r"\D", "", text)
-        return digits if digits else None
+        elif profile == "RANSA":
+            if not str(
+                row.get("negocio") or ""
+            ).strip():
+                errors.append(
+                    "NEGOCIO OBLIGATORIO"
+                )
 
-    def _clasificar_telefono(self, telefono):
-        text = self._safe_str(telefono)
-        if not text:
-            return "VACIO"
+            if not str(
+                row.get("tipo_cargo") or ""
+            ).strip():
+                errors.append(
+                    "TIPO CARGO OBLIGATORIO"
+                )
 
-        digits = re.sub(r"\D", "", text)
-        if not digits:
-            return "VACIO"
+        return pd.Series({
+            "errores":
+                self.common.join_messages(
+                    errors
+                ),
+            "advertencias":
+                self.common.join_messages(
+                    warnings
+                ),
+        })
+
+    def _validate_provider(
+        self,
+        row,
+        errors,
+    ):
+        provider_name = str(
+            row.get("nombre_proveedor")
+            or ""
+        ).strip()
+
+        client_name = str(
+            row.get("nombre_cliente")
+            or ""
+        ).strip()
+
+        ruc = str(
+            row.get("ruc_proveedor")
+            or ""
+        ).strip()
+
+        original_ruc = str(
+            row.get("_ruc_proveedor_original")
+            or ""
+        ).strip()
+
+        if len(provider_name) <= 2:
+            errors.append(
+                "NOMBRE PROVEEDOR OBLIGATORIO"
+            )
+
+        if not original_ruc:
+            errors.append(
+                "RUC PROVEEDOR OBLIGATORIO"
+            )
+        elif not bool(
+            row.get("ruc_proveedor_valido")
+        ):
+            errors.append(
+                "RUC PROVEEDOR INVALIDO"
+            )
+
+        if len(client_name) <= 2:
+            errors.append(
+                "NOMBRE CLIENTE OBLIGATORIO"
+            )
+
+    def _validate_client(
+        self,
+        row,
+        errors,
+    ):
+        client_name = str(
+            row.get("nombre_cliente")
+            or ""
+        ).strip()
+
+        ruc = str(
+            row.get("ruc_cliente")
+            or ""
+        ).strip()
+
+        original_ruc = str(
+            row.get("_ruc_cliente_original")
+            or ""
+        ).strip()
+
+        if len(client_name) <= 2:
+            errors.append(
+                "NOMBRE CLIENTE OBLIGATORIO"
+            )
+
+        if not original_ruc:
+            errors.append(
+                "RUC CLIENTE OBLIGATORIO"
+            )
+        elif not bool(
+            row.get("ruc_cliente_valido")
+        ):
+            errors.append(
+                "RUC CLIENTE INVALIDO"
+            )
+
+    def _get_paternal_last_name(
+        self,
+        row,
+    ) -> str:
+        paternal = str(
+            row.get("apellido_pat")
+            or ""
+        ).strip()
+
+        if paternal:
+            return paternal
+
+        return str(
+            row.get("apellido")
+            or ""
+        ).strip()
+
+    @staticmethod
+    def _valid_phone(value) -> bool:
+        digits = str(
+            value or ""
+        ).strip()
 
         if digits.startswith("51"):
             digits = digits[2:]
 
-        if re.fullmatch(r"9\d{8}", digits):
-            return "CELULAR_PE"
-
-        if re.fullmatch(r"\d{7,8}", digits):
-            return "FIJO_PE"
-
-        if len(digits) > 9:
-            return "EXTRANJERO"
-
-        return "INVALIDO"
-
-    def _normalize_perfil(self, perfil):
-        text = self._safe_str(perfil)
-        return text.upper() if text else None
-
-    def _validar_dni(self, dni):
-        dni = self._normalize_integer_id(dni)
-        if not dni:
-            return False
-        return bool(re.fullmatch(r"\d{8}", dni))
-
-    def _validar_ruc(self, ruc):
-        ruc = self._normalize_integer_id(ruc)
-        if not ruc:
-            return False
-        return bool(re.fullmatch(r"\d{11}", ruc))
-
-    def _validar_correo(self, correo):
-        text = self._safe_str(correo)
-        if not text:
-            return False
-
-        return bool(re.fullmatch(r"[^@]+@[^@]+\.[^@]+", text))
-
-    def _build_observaciones(self, row):
-        errores = []
-
-        if self._is_empty(row.get("numero_documento")):
-            errores.append("DNI vacio")
-        elif not bool(row.get("dni_valido")):
-            errores.append("DNI invalido")
-
-        if self._is_empty(row.get("nombre")):
-            errores.append("Nombre vacio")
-
-        if self._is_empty(row.get("apellido_pat")):
-            errores.append("Apellido paterno vacio")
-
-        # apellido materno no rompe el flujo, pero se marca como observacion
-        #if self._is_empty(row.get("apellido_mat")):
-        #    errores.append("Apellido materno vacio")
-
-        if self._is_empty(row.get("email")):
-            errores.append("Correo vacio")
-        elif not bool(row.get("correo_valido")):
-            errores.append("Correo invalido")
-
-        if row.get("tipo_telefono") == "INVALIDO":
-            errores.append("Telefono invalido")
-
-        perfil = row.get("perfil")
-
-        if perfil not in self.PERFILES_VALIDOS:
-            errores.append("Perfil invalido")
-
-        elif perfil == "CLIENTE":
-            if self._is_empty(row.get("nombre_cliente")):
-                errores.append("Falta nombre cliente")
-
-            if self._is_empty(row.get("ruc_cliente")):
-                errores.append("Falta RUC cliente")
-            elif not bool(row.get("ruc_cliente_valido")):
-                errores.append("RUC cliente invalido")
-
-        elif perfil == "PROVEEDOR":
-            if self._is_empty(row.get("nombre_proveedor")):
-                errores.append("Falta nombre proveedor")
-
-            if self._is_empty(row.get("ruc_proveedor")):
-                errores.append("Falta RUC proveedor")
-            elif not bool(row.get("ruc_proveedor_valido")):
-                errores.append("RUC proveedor invalido")
-
-            if self._is_empty(row.get("nombre_cliente")):
-                errores.append("Falta nombre cliente")
-
-        elif perfil == "RANSA":
-            if self._is_empty(row.get("negocio")):
-                errores.append("Falta negocio")
-
-            if self._is_empty(row.get("tipo_cargo")):
-                errores.append("Falta tipo cargo")
-
-        return " | ".join(errores) if errores else None
+        return bool(
+            re.fullmatch(
+                r"9\d{8}|\d{7,8}",
+                digits,
+            )
+        )

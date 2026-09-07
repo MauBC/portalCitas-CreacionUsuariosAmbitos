@@ -1,4 +1,4 @@
-﻿import pandas as pd
+import pandas as pd
 
 
 class CountryMappingService:
@@ -7,11 +7,12 @@ class CountryMappingService:
         if df.empty:
             return df.copy()
 
-        df = df.copy()
-
-        # Compatibilidad con formularios antiguos de Peru
         if "pais" not in df.columns:
-            df["pais"] = "PER"
+            raise ValueError(
+                "El DataFrame no contiene la columna pais."
+            )
+
+        df = df.copy()
 
         df["pais"] = (
             df["pais"]
@@ -24,7 +25,6 @@ class CountryMappingService:
         slv_mask = df["pais"] == "SLV"
 
         if slv_mask.any():
-
             mapping = {
                 "nombre": "nombre_personal",
                 "apellido": "apellido_personal",
@@ -39,12 +39,13 @@ class CountryMappingService:
             }
 
             for target, source in mapping.items():
-
                 if target not in df.columns:
                     df[target] = None
 
                 if source in df.columns:
-                    df.loc[slv_mask, target] = df.loc[slv_mask, source]
+                    df.loc[slv_mask, target] = (
+                        df.loc[slv_mask, source]
+                    )
 
             df.loc[slv_mask, "tipo_documento"] = "DUI"
             df.loc[slv_mask, "perfil"] = "PROVEEDOR"
