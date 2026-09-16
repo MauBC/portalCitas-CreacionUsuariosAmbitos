@@ -6,6 +6,7 @@ import pandas as pd
 from app.clients.sharepoint_client import (
     SharePointClient
 )
+from app.config.paths import OUTPUT_ROOT
 from app.config.settings import settings
 from app.services.ambitos_assignment_service import (
     AmbitosAssignmentService
@@ -359,12 +360,7 @@ def _filter_created_rows(
 def _find_valid_report(
     country_code: str | None = None,
 ) -> str:
-    root = os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-        )
-    )
+    root = str(OUTPUT_ROOT)
 
     country = str(
         country_code or "SLV"
@@ -374,7 +370,6 @@ def _find_valid_report(
         patterns = [
             os.path.join(
                 root,
-                "salidas",
                 "excel_proveedores_*",
                 "reporte_excel_VALIDOS_*.xlsx",
             ),
@@ -384,7 +379,6 @@ def _find_valid_report(
         patterns = [
             os.path.join(
                 root,
-                "salidas",
                 "ejecucion_*",
                 "reporte_VALIDOS_*.xlsx",
             ),

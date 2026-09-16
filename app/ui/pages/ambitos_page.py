@@ -5,11 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import (
     QSettings,
     QThread,
-    QUrl,
     Signal,
-)
-from PySide6.QtGui import (
-    QDesktopServices,
 )
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -24,6 +20,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from app.services.error_report_service import build_error_details, redact_secrets
+
+from app.ui.file_actions import open_local_path
+from app.ui.widgets.field_feedback import clear_field_error, set_field_error
 
 from app.ui.dialogs.app_dialog import (
     AppDialog,
@@ -861,64 +862,11 @@ class AmbitosPage(QWidget):
                 False
             )
 
-    def _refresh_input_style(
-        self,
-        widget,
-    ):
-        widget.style().unpolish(
-            widget
-        )
-        widget.style().polish(
-            widget
-        )
+    def _set_inline_error(self, widget, label, message: str):
+        set_field_error(widget, label, message)
 
-    def _set_inline_error(
-        self,
-        widget,
-        label,
-        message: str,
-    ):
-        widget.setProperty(
-            "invalid",
-            True,
-        )
-        widget.setProperty(
-            "valid",
-            False,
-        )
-
-        label.setText(
-            message
-        )
-        label.show()
-
-        self._refresh_input_style(
-            widget
-        )
-
-    def _clear_inline_error(
-        self,
-        widget,
-        label,
-        *,
-        mark_valid: bool = False,
-    ):
-        widget.setProperty(
-            "invalid",
-            False,
-        )
-
-        widget.setProperty(
-            "valid",
-            bool(mark_valid),
-        )
-
-        label.clear()
-        label.hide()
-
-        self._refresh_input_style(
-            widget
-        )
+    def _clear_inline_error(self, widget, label, *, mark_valid: bool = False):
+        clear_field_error(widget, label, mark_valid=mark_valid)
 
     def _validate_source(self):
         valid = True
@@ -1594,6 +1542,14 @@ class AmbitosPage(QWidget):
         error_detail: str,
         full_trace: str,
     ):
+        details = build_error_details(
+            phase="3",
+            country=self.country,
+            mode=mode,
+            error_detail=error_detail,
+            full_trace=full_trace,
+        )
+        error_detail = redact_secrets(error_detail)
         self.progress.hide()
 
         self.preview_button.setEnabled(
@@ -1608,13 +1564,6 @@ class AmbitosPage(QWidget):
             "Ocurrió un error durante Fase 3."
         )
 
-        print()
-        print("=" * 80)
-        print(
-            f"ERROR GUI - FASE 3 - {mode.upper()}"
-        )
-        print("=" * 80)
-        print(full_trace)
 
         normalized_error = (
             str(error_detail)
@@ -1651,7 +1600,7 @@ class AmbitosPage(QWidget):
             self,
             title,
             user_message,
-            details=full_trace,
+            details=details,
         )
 
     def _cleanup_thread(self):
@@ -1668,30 +1617,8 @@ class AmbitosPage(QWidget):
     # OPEN FILES
     # =====================================================
 
-    def _open_path(
-        self,
-        value,
-    ):
-        if not value:
-            return
-
-        path = Path(
-            str(value)
-        )
-
-        if not path.exists():
-            AppDialog.warning(
-                self,
-                "Archivo no encontrado",
-                str(path),
-            )
-            return
-
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(
-                str(path.resolve())
-            )
-        )
+    def _open_path(self, value: str | Path | None):
+        open_local_path(self, value)
 
     def _open_preview(self):
         if self.last_preview:

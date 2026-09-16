@@ -3,6 +3,8 @@ import json
 import re
 import unicodedata
 
+from app.config.paths import CONFIG_ROOT
+
 
 class AmbitosConfigService:
 
@@ -10,17 +12,9 @@ class AmbitosConfigService:
         self,
         config_path=None,
     ):
-        project_root = (
-            Path(__file__)
-            .resolve()
-            .parents[2]
-        )
-
         self.config_path = Path(
             config_path
-            or project_root
-            / "app"
-            / "config"
+            or CONFIG_ROOT
             / "ambitos_config.json"
         )
 
