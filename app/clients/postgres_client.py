@@ -1,3 +1,5 @@
+from contextlib import closing
+
 import psycopg2
 
 from app.config.settings import settings
@@ -22,7 +24,15 @@ class PostgresClient:
             )
         )
 
+        try:
+            connect_timeout = int(settings.DB_CONNECT_TIMEOUT)
+        except (TypeError, ValueError):
+            raise ValueError("DB_CONNECT_TIMEOUT debe ser un entero de al menos 2 segundos.") from None
+        if connect_timeout < 2:
+            raise ValueError("DB_CONNECT_TIMEOUT debe ser un entero de al menos 2 segundos.")
+
         self.conn_params = {
+            "connect_timeout": connect_timeout,
             "host":
                 settings.DB_HOST,
             "port":
@@ -38,6 +48,7 @@ class PostgresClient:
         }
 
     def get_connection(self):
+        """Return a new connection; callers are responsible for closing it."""
         return psycopg2.connect(
             **self.conn_params
         )
@@ -47,7 +58,8 @@ class PostgresClient:
         query: str,
         params: tuple | None = None,
     ):
-        with self.get_connection() as conn:
+        # The psycopg2 transaction context commits/rolls back but does not close.
+        with closing(self.get_connection()) as conn, conn:
             with conn.cursor() as cur:
                 cur.execute(
                     query,
