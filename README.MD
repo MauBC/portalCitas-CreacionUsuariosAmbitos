@@ -15,6 +15,16 @@ La GUI integra Usuarios, Resultado del Portal y Ambitos, con seleccion de pais y
 
 Consultar [arquitectura y mantenimiento](docs/arquitectura.md) para el mapa de componentes, contratos y convenciones de desarrollo.
 
+Para instalar las dependencias de ejecucion:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+El ejecutable PySide6 se genera con `tools/build_gui.ps1`. Ver la
+[guia de distribucion Windows](docs/distribucion.md) para crear un entorno de
+compilacion, verificar el EXE y configurar el `.env` externo.
+
 ## Arquitectura por pais
 
 | Pais | Fuente principal | Estado de creacion | Base de datos |
