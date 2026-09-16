@@ -174,6 +174,14 @@ de los campos entre error, valido y neutro en las tres paginas.
 
 ## Vista y contratos de presentacion
 
+Las tres fases separan la construccion visual (`app/ui/views`) de los
+controladores (`app/ui/pages`). `UsersView`, `Phase2View` y `AmbitosView`
+crean los controles sin leer ajustes, iniciar workers ni conectar acciones
+de negocio. Cada pagina carga el enlace guardado, conecta explicitamente los
+eventos mediante `_connect_view_signals` y aplica el pais inicial.
+`test_28_vistas_gui.py` comprueba las vistas independientes, los botones,
+la seleccion de fuente, la navegacion y la recuperacion de ajustes.
+
 Al iniciar otro preview, Fase 2 y Ambitos invalidan el resultado previo antes
 de ejecutar el worker. Un fallo no rehabilita las acciones del intento anterior.
 Cambiar las entradas elimina las referencias visuales a copias, resultados
