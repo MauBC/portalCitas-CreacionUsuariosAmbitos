@@ -111,6 +111,21 @@ conserva el diagnostico para que el error de disco no oculte el fallo original.
 ventanas ni conectarse a servicios reales. La ruta de ejecutable se prueba
 mediante simulacion; esto no sustituye la validacion futura del empaquetado.
 
+## Componentes compartidos de interfaz
+
+`app/ui/file_actions.py` abre archivos y carpetas generados. Comprueba que el
+destino exista y muestra un aviso si el sistema no puede abrirlo. Las tres
+paginas delegan esta accion al mismo componente.
+
+`app/ui/widgets/field_feedback.py` aplica los estados visuales `invalid` y
+`valid`, y muestra o limpia los mensajes junto al campo. Cada pagina conserva
+sus reglas de validacion y decide cuando aplicar esos estados. La seleccion
+entre Excel local y SharePoint de Fase 1 mantiene su comportamiento especifico.
+
+`test_19_gui_componentes.py` verifica la apertura sin lanzar aplicaciones reales,
+los errores por archivo ausente o sin aplicacion asociada y las transiciones
+de los campos entre error, valido y neutro en las tres paginas.
+
 ## Convenciones para los siguientes checkpoints
 
 - Usar `.editorconfig`: UTF-8, espacios y salto final. No reformatear todo el

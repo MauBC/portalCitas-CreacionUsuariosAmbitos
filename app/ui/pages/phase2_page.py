@@ -5,11 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import (
     QSettings,
     QThread,
-    QUrl,
     Signal,
-)
-from PySide6.QtGui import (
-    QDesktopServices,
 )
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -26,6 +22,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.services.error_report_service import build_error_details, redact_secrets
+
+from app.ui.file_actions import open_local_path
+from app.ui.widgets.field_feedback import clear_field_error, set_field_error
 
 from app.ui.dialogs.app_dialog import (
     AppDialog,
@@ -1038,64 +1037,11 @@ class Phase2Page(QWidget):
                 "si existen cambios seguros."
             )
 
-    def _refresh_input_style(
-        self,
-        widget,
-    ):
-        widget.style().unpolish(
-            widget
-        )
-        widget.style().polish(
-            widget
-        )
+    def _set_field_error(self, widget, label, message: str):
+        set_field_error(widget, label, message)
 
-    def _set_field_error(
-        self,
-        widget,
-        error_label,
-        message: str,
-    ):
-        widget.setProperty(
-            "invalid",
-            True,
-        )
-        widget.setProperty(
-            "valid",
-            False,
-        )
-
-        error_label.setText(
-            message
-        )
-        error_label.show()
-
-        self._refresh_input_style(
-            widget
-        )
-
-    def _clear_field_error(
-        self,
-        widget,
-        error_label,
-        *,
-        mark_valid: bool = False,
-    ):
-        widget.setProperty(
-            "invalid",
-            False,
-        )
-
-        widget.setProperty(
-            "valid",
-            bool(mark_valid),
-        )
-
-        error_label.clear()
-        error_label.hide()
-
-        self._refresh_input_style(
-            widget
-        )
+    def _clear_field_error(self, widget, label, *, mark_valid: bool = False):
+        clear_field_error(widget, label, mark_valid=mark_valid)
 
     def _clear_inline_errors(self):
         for widget, label in [
@@ -2482,30 +2428,8 @@ class Phase2Page(QWidget):
         self.thread = None
         self.active_mode = None
 
-    def _open_path(
-        self,
-        value,
-    ):
-        if not value:
-            return
-
-        path = Path(
-            str(value)
-        )
-
-        if not path.exists():
-            AppDialog.warning(
-                self,
-                "Archivo no encontrado",
-                str(path),
-            )
-            return
-
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(
-                str(path.resolve())
-            )
-        )
+    def _open_path(self, value: str | Path | None):
+        open_local_path(self, value)
 
     def _open_result(self):
         if self.last_local_copy:

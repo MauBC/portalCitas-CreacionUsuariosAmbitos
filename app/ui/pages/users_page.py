@@ -5,11 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import (
     QSettings,
     QThread,
-    QUrl,
     Signal,
-)
-from PySide6.QtGui import (
-    QDesktopServices,
 )
 from PySide6.QtWidgets import (
     QComboBox,
@@ -29,6 +25,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.services.error_report_service import build_error_details, redact_secrets
+
+from app.ui.file_actions import open_local_path
+from app.ui.widgets.field_feedback import set_input_state
 
 from app.ui.dialogs.app_dialog import (
     AppDialog,
@@ -700,17 +699,6 @@ class UsersPage(QWidget):
             else 1
         )
 
-    def _refresh_input_style(
-        self,
-        widget,
-    ):
-        widget.style().unpolish(
-            widget
-        )
-        widget.style().polish(
-            widget
-        )
-
     def _set_per_source_error(
         self,
         widget,
@@ -720,18 +708,7 @@ class UsersPage(QWidget):
             self.per_url,
             self.per_file,
         ]:
-            current.setProperty(
-                "invalid",
-                current is widget,
-            )
-            current.setProperty(
-                "valid",
-                False,
-            )
-
-            self._refresh_input_style(
-                current
-            )
+            set_input_state(current, invalid=current is widget)
 
         self.per_source_error.setText(
             message
@@ -746,18 +723,7 @@ class UsersPage(QWidget):
             self.per_url,
             self.per_file,
         ]:
-            current.setProperty(
-                "invalid",
-                False,
-            )
-            current.setProperty(
-                "valid",
-                current is widget,
-            )
-
-            self._refresh_input_style(
-                current
-            )
+            set_input_state(current, valid=current is widget)
 
         self.per_source_error.clear()
         self.per_source_error.hide()
@@ -773,18 +739,7 @@ class UsersPage(QWidget):
             self.per_url,
             self.per_file,
         ]:
-            current.setProperty(
-                "invalid",
-                False,
-            )
-            current.setProperty(
-                "valid",
-                False,
-            )
-
-            self._refresh_input_style(
-                current
-            )
+            set_input_state(current)
 
         self.per_source_error.clear()
         self.per_source_error.hide()
@@ -1241,28 +1196,8 @@ class UsersPage(QWidget):
             bool(errors)
         )
 
-    def _open_path(
-        self,
-        path: str | None,
-    ):
-        if not path:
-            return
-
-        target = Path(path)
-
-        if not target.exists():
-            AppDialog.warning(
-                self,
-                "Archivo no encontrado",
-                str(target),
-            )
-            return
-
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(
-                str(target.resolve())
-            )
-        )
+    def _open_path(self, value: str | Path | None):
+        open_local_path(self, value)
 
     def _open_run_folder(self):
         self._open_path(
