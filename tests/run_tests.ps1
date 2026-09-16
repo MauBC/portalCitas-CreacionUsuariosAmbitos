@@ -43,7 +43,9 @@ if ($List) {
 }
 
 # Resolve before changing directory so relative interpreter paths work.
-$pythonCommand = Get-Command -Name $Python -CommandType Application -ErrorAction Stop
+# Windows PowerShell may return multiple applications; honor PATH precedence.
+$pythonCommand = Get-Command -Name $Python -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1
 $pythonPath = $pythonCommand.Source
 $results = @()
 $suiteExitCode = 0
