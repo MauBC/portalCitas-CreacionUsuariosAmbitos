@@ -19,8 +19,9 @@ Portal se reconcilia antes de generar ambitos.
 
 Los workers mantienen las operaciones de red y procesamiento fuera del hilo
 visual. Las reglas de negocio deben permanecer en servicios y pipelines.
-`run.py` es la interfaz legacy y se conserva. El archivo de PyInstaller aun
-corresponde a esa entrada; no representa el empaquetado de la GUI actual.
+`run.py` es la interfaz legacy y se conserva para ejecucion desde codigo.
+`AutomatizacionUsuarios.spec` empaqueta `run_gui.py` y sus recursos oficiales.
+La configuracion privada permanece externa; ver [distribucion](distribucion.md).
 
 ## Mapa de flujos
 
@@ -109,7 +110,7 @@ conserva el diagnostico para que el error de disco no oculte el fallo original.
 `test_17_configuracion_logs.py` verifica estos contratos y
 `test_18_gui_errores.py` comprueba las tres paginas con Qt offscreen, sin abrir
 ventanas ni conectarse a servicios reales. La ruta de ejecutable se prueba
-mediante simulacion; esto no sustituye la validacion futura del empaquetado.
+mediante simulacion y el build realiza ademas un self-check del EXE real.
 
 ## Componentes compartidos de interfaz
 
@@ -125,6 +126,24 @@ entre Excel local y SharePoint de Fase 1 mantiene su comportamiento especifico.
 `test_19_gui_componentes.py` verifica la apertura sin lanzar aplicaciones reales,
 los errores por archivo ausente o sin aplicacion asociada y las transiciones
 de los campos entre error, valido y neutro en las tres paginas.
+
+## Vista y contratos de presentacion
+
+`Phase2Page` conserva el estado del flujo, los workers y las verificaciones
+necesarias para habilitar acciones. Su base visual `Phase2View` construye las
+tarjetas de archivos, acciones y resultados sin cargar ajustes ni ejecutar
+operaciones. La pagina conecta explicitamente los eventos despues de cargar
+los valores guardados. La vista se puede instanciar sin controlador.
+
+`app/ui/result_models.py` adapta los diccionarios existentes a modelos de
+presentacion inmutables: `Phase1Summary`, `Metric`, `ResultFiles` y
+`Phase2Presentation`. Tambien normaliza las metricas de Ambitos. No modifica
+los diccionarios recibidos ni decide si se permite una escritura remota.
+Las cuentas unicas y las relaciones permanecen como cantidades independientes.
+
+`test_20_fase2_gui_flujo.py` protege la secuencia preview, copia local,
+verificacion y habilitacion de Ambitos. `test_21_resultados_gui.py` verifica
+los adaptadores de PER/SLV y los conteos por cuenta y relacion.
 
 ## Convenciones para los siguientes checkpoints
 

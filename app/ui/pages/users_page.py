@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from app.services.error_report_service import build_error_details, redact_secrets
 
 from app.ui.file_actions import open_local_path
+from app.ui.result_models import Phase1Summary
 from app.ui.widgets.field_feedback import set_input_state
 
 from app.ui.dialogs.app_dialog import (
@@ -977,64 +978,9 @@ class UsersPage(QWidget):
             dict(result),
         )
 
-        if self.country == "SLV":
-            total = int(
-                result.get("total", 0)
-            )
-            valid = int(
-                result.get("validos", 0)
-            )
-            errors = int(
-                result.get("errores", 0)
-            )
-
-            users = valid
-
-            message = (
-                "La plantilla de usuarios de "
-                "El Salvador fue generada."
-            )
-
-        else:
-            total = int(
-                result.get("total", 0)
-            )
-            valid = int(
-                result.get(
-                    "valid_relations",
-                    0,
-                )
-            )
-            errors = int(
-                result.get("errors", 0)
-            )
-            users = int(
-                result.get(
-                    "unique_users",
-                    0,
-                )
-            )
-
-            already_created = int(
-                result.get(
-                    "already_created",
-                    0,
-                )
-            )
-
-            previous_errors = int(
-                result.get(
-                    "previous_errors",
-                    0,
-                )
-            )
-
-            message = (
-                f"Ya creados omitidos: "
-                f"{already_created} · "
-                f"Errores previos: "
-                f"{previous_errors}"
-            )
+        summary = Phase1Summary.from_backend(self.country, result)
+        total, valid, errors, users = summary.total, summary.valid, summary.errors, summary.users
+        message = summary.message
 
         self.total_value.setText(
             str(total)

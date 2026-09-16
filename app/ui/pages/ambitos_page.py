@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from app.services.error_report_service import build_error_details, redact_secrets
 
 from app.ui.file_actions import open_local_path
+from app.ui.result_models import Metric, scope_metrics
 from app.ui.widgets.field_feedback import clear_field_error, set_field_error
 
 from app.ui.dialogs.app_dialog import (
@@ -1226,23 +1227,10 @@ class AmbitosPage(QWidget):
                 ),
             )
 
-    def _set_metrics(
-        self,
-        titles,
-        values,
-    ):
-        for index in range(6):
-            self.metric_titles[
-                index
-            ].setText(
-                str(titles[index])
-            )
-
-            self.metric_values[
-                index
-            ].setText(
-                str(values[index])
-            )
+    def _set_metrics(self, values: tuple[Metric, ...]):
+        for title_label, value_label, metric in zip(self.metric_titles, self.metric_values, values):
+            title_label.setText(metric.title)
+            value_label.setText(str(metric.value))
 
     def _show_preview_result(
         self,
@@ -1254,42 +1242,7 @@ class AmbitosPage(QWidget):
             "Resultado del PREVIEW"
         )
 
-        self._set_metrics(
-            [
-                "CREADO=1",
-                "Matched",
-                "Revisión",
-                "Entidades",
-                "Relaciones",
-                "Ámbitos",
-            ],
-            [
-                result.get(
-                    "usuarios",
-                    0,
-                ),
-                result.get(
-                    "matched",
-                    0,
-                ),
-                result.get(
-                    "no_match",
-                    0,
-                ),
-                result.get(
-                    "entidades",
-                    0,
-                ),
-                result.get(
-                    "relacion_nueva",
-                    0,
-                ),
-                result.get(
-                    "ambitos",
-                    0,
-                ),
-            ],
-        )
+        self._set_metrics(scope_metrics("preview", result))
 
         source = int(
             result.get(
@@ -1419,42 +1372,7 @@ class AmbitosPage(QWidget):
             "Resultado FINAL"
         )
 
-        self._set_metrics(
-            [
-                "CREADO=1",
-                "Finales",
-                "Pend. cliente",
-                "Pend. técnicos",
-                "Relaciones",
-                "Ámbitos",
-            ],
-            [
-                result.get(
-                    "creado_1",
-                    0,
-                ),
-                result.get(
-                    "registros_finales",
-                    0,
-                ),
-                result.get(
-                    "pendientes_cliente",
-                    0,
-                ),
-                result.get(
-                    "pendientes_tecnicos",
-                    0,
-                ),
-                result.get(
-                    "relacion_nueva",
-                    0,
-                ),
-                result.get(
-                    "ambitos",
-                    0,
-                ),
-            ],
-        )
+        self._set_metrics(scope_metrics("final", result))
 
         self.result_message.setText(
             (

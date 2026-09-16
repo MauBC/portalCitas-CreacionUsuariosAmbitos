@@ -273,7 +273,7 @@ class AmbitosBuilderService:
             "names": list(clients_by_name.keys()),
             "by_name": clients_by_name,
         }
-    
+
 
 
     def _match_text_against_clients(self, value, clients_index: dict) -> dict:
@@ -764,4 +764,3 @@ class AmbitosBuilderService:
         text = str(value).strip()
         digits = "".join(ch for ch in text if ch.isdigit())
         return digits
-

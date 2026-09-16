@@ -224,4 +224,3 @@ print(
     "y reglas tributarias validadas."
 )
 print("=" * 100)
-
