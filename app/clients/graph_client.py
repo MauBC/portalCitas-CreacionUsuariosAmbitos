@@ -27,6 +27,9 @@ class GraphClient:
         json_body: dict | None = None,
         max_retries: int = 5,
     ):
+        if max_retries < 1:
+            raise ValueError("max_retries debe permitir al menos un intento.")
+        method = method.upper()
         last_error = None
 
         for attempt in range(max_retries):
@@ -57,6 +60,7 @@ class GraphClient:
                         )
 
                     if attempt < max_retries - 1:
+                        response.close()
                         time.sleep(wait_seconds)
                         continue
 
@@ -78,7 +82,15 @@ class GraphClient:
             except requests.RequestException as exc:
                 last_error = exc
 
-                if attempt < max_retries - 1:
+                # HTTP retry statuses are handled above. Permanent HTTP errors,
+                # invalid JSON and invalid URLs will not improve by repeating.
+                # A transport failure on a write can leave its outcome unknown.
+                retryable_transport = (
+                    method in {"GET", "HEAD"}
+                    and isinstance(exc, (requests.ConnectionError, requests.Timeout))
+                    and not isinstance(exc, requests.exceptions.SSLError)
+                )
+                if retryable_transport and attempt < max_retries - 1:
                     time.sleep(
                         min(
                             2 ** attempt,
@@ -107,7 +119,7 @@ class GraphClient:
 
         raise RuntimeError(
             f"Error en llamada Graph: {method} {url}{detail}"
-        )
+        ) from last_error
 
     def get(
         self,

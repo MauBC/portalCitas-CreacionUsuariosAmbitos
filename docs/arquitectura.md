@@ -97,6 +97,16 @@ consecutiva. Las pruebas individuales tambien pueden ejecutarse directamente.
 
 ## Configuracion, rutas y diagnosticos
 
+`GraphClient` reintenta HTTP 429, 500, 502, 503 y 504, respetando
+`Retry-After` numerico o usando una espera exponencial cuando no esta presente.
+Los errores HTTP permanentes, certificados invalidos y JSON invalido no se
+repiten. Los errores de transporte se reintentan solo para lecturas GET/HEAD:
+un PATCH sin respuesta puede haberse aplicado y requiere comprobar el estado
+antes de repetirlo. El error final conserva su causa para diagnostico.
+`max_retries` mantiene su significado existente de numero total de intentos.
+`test_26_graph_reintentos.py` valida la politica sin solicitudes reales.
+Referencia: [limites y reintentos de Graph](https://learn.microsoft.com/en-us/graph/throttling).
+
 `PostgresClient.fetch_all` cierra la conexion despues de cada consulta, tanto
 si termina correctamente como si falla la consulta o la transaccion. Conserva
 el commit/rollback del contexto de psycopg2 y propaga el error original.
