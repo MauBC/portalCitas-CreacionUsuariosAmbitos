@@ -67,7 +67,7 @@ python -m compileall -q app tests run_gui.py
 git diff --check
 ```
 
-`Local` incluye actualmente 12 scripts con datos locales, temporales o dobles de
+`Local` incluye scripts con datos locales, temporales o dobles de
 prueba. `Integration` incluye `test_01` a `test_04`: necesita `.env`, acceso a
 Graph/SharePoint y PostgreSQL y datos operativos compatibles. Genera archivos
 en `salidas/`. Su orden es relevante: Fase 1 prepara los archivos de Ambitos.
@@ -83,6 +83,33 @@ Al agregar un test que use servicios reales, incluir su nombre en
 `$integrationTests` del runner; los demas tests se clasifican como locales.
 No hay un `test_09` en la suite actual: el descubrimiento no requiere numeracion
 consecutiva. Las pruebas individuales tambien pueden ejecutarse directamente.
+
+## Configuracion, rutas y diagnosticos
+
+`app/config/paths.py` centraliza las rutas de recursos y salidas. Los recursos
+se resuelven desde el codigo; el `.env` y las salidas se ubican en la raiz del
+proyecto durante desarrollo y junto al ejecutable cuando esta empaquetado.
+Las carpetas de ejecucion conservan su prefijo y fecha; si dos ejecuciones
+comparten timestamp, la segunda recibe un sufijo unico.
+
+`load_env()` exige un `.env` para los entrypoints existentes. Los servicios que
+importan `settings` usan `load_env(required=False)` para poder ejecutarse con
+variables del proceso o datos de prueba sin un archivo local. Las variables
+ya presentes en el proceso tienen prioridad. No se busca un `.env` en la
+carpeta actual ni en directorios ajenos al proyecto.
+
+Los errores de las tres paginas GUI se guardan en
+`salidas/error_gui_<timestamp>/error.log`, con fecha, fase, pais, modo y traza.
+El detalle del dialogo incluye la ruta. El servicio elimina los valores
+configurados de `MS_CLIENT_SECRET` y `DB_PASSWORD`, ademas de campos comunes de
+credenciales. Los reportes siguen siendo diagnosticos locales y pueden contener
+datos operativos; no se versionan. Si no se puede escribir el log, el dialogo
+conserva el diagnostico para que el error de disco no oculte el fallo original.
+
+`test_17_configuracion_logs.py` verifica estos contratos y
+`test_18_gui_errores.py` comprueba las tres paginas con Qt offscreen, sin abrir
+ventanas ni conectarse a servicios reales. La ruta de ejecutable se prueba
+mediante simulacion; esto no sustituye la validacion futura del empaquetado.
 
 ## Convenciones para los siguientes checkpoints
 

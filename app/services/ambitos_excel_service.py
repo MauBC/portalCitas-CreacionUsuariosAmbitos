@@ -5,6 +5,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from app.config.paths import PROJECT_ROOT, TEMPLATES_ROOT
+
 
 class AmbitosExcelService:
 
@@ -73,26 +75,18 @@ class AmbitosExcelService:
             exist_ok=True,
         )
 
-        project_root = (
-            Path(__file__)
-            .resolve()
-            .parents[2]
-        )
-
         configured = (
             Path(template_path)
             if template_path
             else (
-                project_root
-                / "app"
-                / "templates"
+                TEMPLATES_ROOT
                 / "subida_ambitos.xlsx"
             )
         )
 
         if not configured.exists():
             root_candidate = (
-                project_root
+                PROJECT_ROOT
                 / "subida_ambitos.xlsx"
             )
 

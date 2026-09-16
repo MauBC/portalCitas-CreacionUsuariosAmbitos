@@ -1,9 +1,10 @@
 ﻿import os
 
-from dotenv import load_dotenv
+from app.config.env_loader import load_env
 
 
-load_dotenv()
+# Pure services can run without .env; entrypoints enforce it when required.
+load_env(required=False)
 
 
 class Settings:

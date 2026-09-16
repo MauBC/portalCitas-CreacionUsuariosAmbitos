@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.services.error_report_service import build_error_details, redact_secrets
+
 from app.ui.dialogs.app_dialog import (
     AppDialog,
 )
@@ -2368,6 +2370,14 @@ class Phase2Page(QWidget):
         error_detail: str,
         full_trace: str,
     ):
+        details = build_error_details(
+            phase="2",
+            country=self.country,
+            mode=mode,
+            error_detail=error_detail,
+            full_trace=full_trace,
+        )
+        error_detail = redact_secrets(error_detail)
         self.progress.hide()
 
         self.preview_button.setEnabled(
@@ -2453,20 +2463,12 @@ class Phase2Page(QWidget):
                 error_detail
             )
 
-        print()
-        print("=" * 80)
-        print(
-            f"ERROR GUI - FASE 2 - "
-            f"{mode.upper()}"
-        )
-        print("=" * 80)
-        print(full_trace)
 
         AppDialog.error(
             self,
             title,
             user_message,
-            details=full_trace,
+            details=details,
         )
 
     def _cleanup_thread(self):

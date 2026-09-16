@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 import os
 import re
 import zipfile
@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
 import pandas as pd
+
+from app.config.paths import TEMPLATES_ROOT
 
 
 class PortalUserTemplateService:
@@ -35,13 +37,9 @@ class PortalUserTemplateService:
 
     def __init__(self, template_path=None):
 
-        project_root = Path(__file__).resolve().parents[2]
-
         self.template_path = Path(
             template_path
-            or project_root
-            / "app"
-            / "templates"
+            or TEMPLATES_ROOT
             / "subida_usuarios.xlsx"
         )
 

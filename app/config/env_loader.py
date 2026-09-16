@@ -1,26 +1,20 @@
-import os
-import sys
+from pathlib import Path
+
 from dotenv import load_dotenv
 
+from app.config.paths import get_runtime_root
 
-def load_env():
+
+def load_env(*, required: bool = True) -> Path:
+    """Load the project's explicit .env without overriding process variables.
+
+    GUI/legacy entrypoints require the file; pure backend services may use only
+    environment variables. The current working directory never selects a .env.
     """
-    Carga el .env desde la misma carpeta del ejecutable o script.
-    """
-
-    if getattr(sys, 'frozen', False):
-        # ejecutable (.exe)
-        base_path = os.path.dirname(sys.executable)
-    else:
-        # modo desarrollo (python)
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        base_path = os.path.abspath(os.path.join(base_path, "../../"))
-
-    env_path = os.path.join(base_path, ".env")
-
-    if not os.path.exists(env_path):
-        raise FileNotFoundError(
-            f"No se encontro el archivo .env en: {env_path}"
-        )
-
-    load_dotenv(env_path)
+    env_path = get_runtime_root() / ".env"
+    if not env_path.is_file():
+        if required:
+            raise FileNotFoundError(f"No se encontro el archivo .env en: {env_path}")
+        return env_path
+    load_dotenv(env_path, override=False)
+    return env_path

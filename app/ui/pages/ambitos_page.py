@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.services.error_report_service import build_error_details, redact_secrets
+
 from app.ui.dialogs.app_dialog import (
     AppDialog,
 )
@@ -1594,6 +1596,14 @@ class AmbitosPage(QWidget):
         error_detail: str,
         full_trace: str,
     ):
+        details = build_error_details(
+            phase="3",
+            country=self.country,
+            mode=mode,
+            error_detail=error_detail,
+            full_trace=full_trace,
+        )
+        error_detail = redact_secrets(error_detail)
         self.progress.hide()
 
         self.preview_button.setEnabled(
@@ -1608,13 +1618,6 @@ class AmbitosPage(QWidget):
             "Ocurrió un error durante Fase 3."
         )
 
-        print()
-        print("=" * 80)
-        print(
-            f"ERROR GUI - FASE 3 - {mode.upper()}"
-        )
-        print("=" * 80)
-        print(full_trace)
 
         normalized_error = (
             str(error_detail)
@@ -1651,7 +1654,7 @@ class AmbitosPage(QWidget):
             self,
             title,
             user_message,
-            details=full_trace,
+            details=details,
         )
 
     def _cleanup_thread(self):

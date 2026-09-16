@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.services.error_report_service import build_error_details, redact_secrets
+
 from app.ui.dialogs.app_dialog import (
     AppDialog,
 )
@@ -1146,6 +1148,14 @@ class UsersPage(QWidget):
         error_detail: str,
         full_trace: str,
     ):
+        details = build_error_details(
+            phase="1",
+            country=self.country,
+            mode="users",
+            error_detail=error_detail,
+            full_trace=full_trace,
+        )
+        error_detail = redact_secrets(error_detail)
         self.progress.hide()
         self.run_button.setEnabled(True)
 
@@ -1161,14 +1171,8 @@ class UsersPage(QWidget):
                 "Puedes consultar el detalle "
                 "t?cnico si lo necesitas."
             ),
-            details=full_trace,
+            details=details,
         )
-
-        print()
-        print("=" * 80)
-        print("ERROR GUI - FASE 1")
-        print("=" * 80)
-        print(full_trace)
 
     def _cleanup_thread(self):
         if self.worker is not None:

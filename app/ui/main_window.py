@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from app.config.paths import PROJECT_ROOT
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
@@ -38,9 +40,7 @@ class MainWindow(QMainWindow):
         self.resize(1180, 760)
         self.setMinimumSize(1020, 680)
 
-        icon_path = Path(
-            "Ransalogo.ico"
-        )
+        icon_path = PROJECT_ROOT / "Ransalogo.ico"
 
         if icon_path.exists():
             self.setWindowIcon(
