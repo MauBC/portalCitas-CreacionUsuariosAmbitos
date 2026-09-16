@@ -24,6 +24,8 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          # Include parents so whitespace checks compare changes, not the entire tree.
+          fetch-depth: 2
       - name: Python 3.12
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -44,7 +46,7 @@ jobs:
         run: |
           python -m compileall -q app tests run_gui.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git show --format= --check HEAD
+          git diff --check HEAD^ HEAD
           exit $LASTEXITCODE
       - name: Offline tests in Windows PowerShell
         shell: powershell

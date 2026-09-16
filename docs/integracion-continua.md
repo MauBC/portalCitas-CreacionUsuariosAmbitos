@@ -8,6 +8,11 @@ comprueba su compatibilidad, compila Python, revisa espacios y ejecuta
 `tests/run_tests.ps1 -Suite Local` con Windows PowerShell. Despues construye
 el ejecutable y ejecuta su self-check offline.
 
+El checkout descarga dos niveles de historial para comparar `HEAD` con su
+primer padre. En un Pull Request, esto revisa los cambios del merge de prueba
+respecto a la rama base; en un push, los del ultimo commit. Evita que un
+checkout de un solo commit trate todo el proyecto como archivos nuevos.
+
 No necesita secretos ni `.env`. Las pruebas de integracion (`test_01` a
 `test_04`) permanecen manuales porque requieren SharePoint, PostgreSQL y datos
 operativos. El workflow no las ejecuta ni modifica fuentes remotas.

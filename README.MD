@@ -312,4 +312,3 @@ Esto ocurre porque la nueva entidad todavia no estaba disponible cuando el Porta
 Una segunda carga del mismo archivo, una vez creadas las entidades, permite completar esas relaciones.
 
 Por este motivo, este mensaje no implica necesariamente un error en la plantilla generada por el backend.
-
