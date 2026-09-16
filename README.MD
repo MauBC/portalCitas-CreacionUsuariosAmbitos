@@ -25,6 +25,10 @@ El ejecutable PySide6 se genera con `tools/build_gui.ps1`. Ver la
 [guia de distribucion Windows](docs/distribucion.md) para crear un entorno de
 compilacion, verificar el EXE y configurar el `.env` externo.
 
+La [guia de integracion continua](docs/integracion-continua.md) describe las
+pruebas y la compilacion automatica en GitHub, y como activar su verificacion
+en los Pull Requests.
+
 ## Arquitectura por pais
 
 | Pais | Fuente principal | Estado de creacion | Base de datos |

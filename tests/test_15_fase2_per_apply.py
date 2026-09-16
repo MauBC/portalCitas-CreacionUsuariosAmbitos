@@ -471,12 +471,13 @@ responses = [
     ),
 ]
 
-with patch(
+with patch("app.services.provider_excel_remote_apply_service.MsalAuthService") as auth_mock, patch(
     "app.services."
     "provider_excel_remote_apply_service."
     "requests.put",
     side_effect=responses,
 ) as put_mock:
+    auth_mock.return_value.get_access_token.return_value = "test-token"
     with patch(
         "app.services."
         "provider_excel_remote_apply_service."
@@ -524,12 +525,13 @@ persistent_responses = [
 
 persistent_lock_ok = False
 
-with patch(
+with patch("app.services.provider_excel_remote_apply_service.MsalAuthService") as auth_mock, patch(
     "app.services."
     "provider_excel_remote_apply_service."
     "requests.put",
     side_effect=persistent_responses,
 ) as put_mock:
+    auth_mock.return_value.get_access_token.return_value = "test-token"
     with patch(
         "app.services."
         "provider_excel_remote_apply_service."
