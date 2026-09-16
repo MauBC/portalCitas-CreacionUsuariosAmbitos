@@ -1,14 +1,74 @@
 {
-  "version": 1,
+  "version": 3,
   "catalogos": {
-    "tipos_negocio": [
-      "SECOS",
-      "FRÍOS"
+    "tipo_negocio_nuevo": [
+      {
+        "Grupo": 1,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Tecnología"
+      },
+      {
+        "Grupo": 2,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Consumo masivo"
+      },
+      {
+        "Grupo": 3,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Perfumería y farmacia"
+      },
+      {
+        "Grupo": 4,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Retail"
+      },
+      {
+        "Grupo": 5,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Alimentos y bebidas"
+      },
+      {
+        "Grupo": 6,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Productos adhesivos"
+      },
+      {
+        "Grupo": 7,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Tratamiento y distribución de agua"
+      },
+      {
+        "Grupo": 8,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Farmacia y cosméticos"
+      },
+      {
+        "Grupo": 9,
+        "Tipo de negocio": "Centros de Distribución",
+        "Rubro": "Minería"
+      }
     ]
   },
   "countries": {
     "SLV": {
       "clients": {
+        "CALLEJA S.A": {
+          "db_name": "CALLEJA S.A",
+          "aliases": [
+            "CALLEJA",
+            "CALLEJAS",
+            "CALLEJA S.A",
+            "CALLEJA S.A.",
+            "CALLEJA SA",
+            "CALLEJA S A"
+          ],
+          "relation_group": 1,
+          "tipo_negocio_group": 5,
+          "sede_group": 1,
+          "sede": "RANSA APOPA",
+          "sede_tipo_negocio": "FRÍOS",
+          "ready_for_upload": false
+        },
         "DOCTOR SV": {
           "db_name": "DOCTOR SV",
           "aliases": [
@@ -21,42 +81,34 @@
             "TELEMEDICINA",
             "TELEMEDICINA."
           ],
-          "ready_for_upload": false,
-          "negocios": [
-            {
-              "tipo": "SECOS",
-              "rubro": "",
-              "sedes": [
-                "SANTA ELENA"
-              ]
-            }
-          ]
-        },
-        "CALLEJA S.A": {
-          "db_name": "CALLEJA S.A",
-          "aliases": [
-            "CALLEJA",
-            "CALLEJAS",
-            "CALLEJA S.A",
-            "CALLEJA S.A.",
-            "CALLEJA SA",
-            "CALLEJA S A"
-          ],
-          "ready_for_upload": false,
-          "negocios": [
-            {
-              "tipo": "FRÍOS",
-              "rubro": "",
-              "sedes": [
-                "RANSA APOPA"
-              ]
-            }
-          ]
+          "relation_group": 2,
+          "tipo_negocio_group": 3,
+          "sede_group": 2,
+          "sede": "RANSA SANTA ELENA",
+          "sede_tipo_negocio": "SECOS",
+          "ready_for_upload": false
         }
       }
     },
     "PER": {
-      "clients": {}
+      "clients": {
+        "DOLLARCITY": {
+          "db_name": "DOLLARCITY",
+          "aliases": [
+            "DOLLARCITY",
+            "DOLARCITY",
+            "DOLLACITY",
+            "DOLLAY CITY",
+            "DOLLAR CITY"
+          ],
+          "relation_group": 1,
+          "tipo_negocio_group": 4,
+          "sede_group": 1,
+          "sede": "RSA",
+          "sede_tipo_negocio": "Centros de Distribución",
+          "ready_for_upload": false
+        }
+      }
     }
   }
 }

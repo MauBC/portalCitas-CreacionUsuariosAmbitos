@@ -1,24 +1,45 @@
-﻿.env
-clave_ambitos_carga.json
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Entornos
+.venv/
+venv/
+env/
+
+# Secretos locales
+.env
+.env.*
+!.env.example
+
+# Datos locales
+/usuarios.xlsx
+
+# IDE
+.vscode/
+.idea/
+
+# Generados
+salidas/
+backup_*/
+*.log
+
+# Temporales
+*.tmp
 *.bak
-*.bak_*
-*.bak-*
+~$*.xlsx
+
+# PyInstaller
 build/
 dist/
-salidas/
-
-# =========================
-# Archivos locales / temporales
-# =========================
-codigo_proyecto.txt
-env_variables_seguras.txt
-data_test.xlsx
-
-
-# Permitir plantilla de variables de entorno
-!.env.example
-
-# Permitir plantilla de variables de entorno
-!.env.example
+contexto_chatgpt/
+estructura_proyecto.txt
+rutas_proyecto.txt
+fase3_contrato_actual.txt
+actualizar_documentacion_etapa5*.ps1
+ordenar_proyecto_etapa4_raiz_v2.ps1
+test_flujo_completo_per_slv*.py

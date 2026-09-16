@@ -1,19 +1,32 @@
 from _bootstrap import ROOT
 
-import importlib
-import inspect
+from pathlib import Path
 import os
+import warnings
+import zipfile
 
 import pandas as pd
 
+from app.main_pipeline import run_pipeline
+
+
+warnings.filterwarnings(
+    "ignore",
+    message=(
+        "Data Validation extension "
+        "is not supported"
+    ),
+)
+
 
 print("=" * 110)
-print("TEST 02 - PIPELINE INTEGRADO DE USUARIOS")
+print(
+    "TEST 02 - PIPELINE INTEGRADO DE USUARIOS"
+)
 print("=" * 110)
 
 
 errors = []
-warnings = []
 
 
 def ok(message):
@@ -25,119 +38,21 @@ def fail(message):
     errors.append(message)
 
 
-def warn(message):
-    print(f"[WARN] {message}")
-    warnings.append(message)
-
-
-# =============================================================================
-# 1. LOCALIZAR RUNNER DE MAIN_PIPELINE
-# =============================================================================
+# ============================================================
+# 1. EJECUCION
+# ============================================================
 
 print()
 print("-" * 110)
 print("1. EJECUCION FASE 1")
 print("-" * 110)
 
-main_pipeline = importlib.import_module(
-    "app.main_pipeline"
-)
-
-candidate_names = [
-    "run_pipeline",
-    "run_main_pipeline",
-    "execute_pipeline",
-    "execute",
-    "main",
-]
-
-runner = None
-runner_name = None
-
-for name in candidate_names:
-
-    function = getattr(
-        main_pipeline,
-        name,
-        None,
-    )
-
-    if not callable(function):
-        continue
-
-    try:
-
-        signature = inspect.signature(
-            function
-        )
-
-        required = [
-            parameter
-            for parameter
-            in signature.parameters.values()
-            if (
-                parameter.default
-                is inspect.Parameter.empty
-                and parameter.kind
-                in (
-                    inspect.Parameter.POSITIONAL_ONLY,
-                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                )
-            )
-        ]
-
-        if not required:
-            runner = function
-            runner_name = name
-            break
-
-    except Exception:
-        continue
-
-
-if runner is None:
-
-    available = [
-        name
-        for name, value
-        in vars(main_pipeline).items()
-        if callable(value)
-        and not name.startswith("_")
-    ]
-
-    raise RuntimeError(
-        "No se encontro automaticamente "
-        "la funcion principal de main_pipeline.py.\n"
-        f"Funciones encontradas: {available}"
-    )
-
-
-ok(
-    f"Runner detectado: {runner_name}()"
-)
-
-
-# =============================================================================
-# 2. EJECUTAR
-# =============================================================================
-
-result = runner()
-
-if not isinstance(result, dict):
-
-    fail(
-        "El pipeline no retorno un dict"
-    )
-
-    raise SystemExit(1)
-
+result = run_pipeline()
 
 if not result.get("ok"):
-
     fail(
-        "El pipeline reporto ok=False"
+        "Pipeline retorno ok=False"
     )
-
 
 total = int(
     result.get("total", 0)
@@ -158,13 +73,11 @@ revision = int(
     )
 )
 
-
 print()
 print(f"Total                : {total}")
 print(f"Validos              : {validos}")
 print(f"Errores              : {errores}")
 print(f"Revision cliente     : {revision}")
-
 
 if validos + errores == total:
     ok(
@@ -172,41 +85,48 @@ if validos + errores == total:
     )
 else:
     fail(
-        "Validos + errores NO coincide "
-        "con el total"
+        "Validos + errores != total"
+    )
+
+if revision == 0:
+    ok(
+        "FASE 1 no bloquea usuarios "
+        "por cliente"
+    )
+else:
+    fail(
+        "FASE 1 todavia contiene "
+        "revision de cliente"
     )
 
 
-# =============================================================================
-# 3. ASEGURAR QUE FASE 1 NO MODIFICA SHAREPOINT
-# =============================================================================
+# ============================================================
+# 2. SHAREPOINT
+# ============================================================
 
 print()
 print("-" * 110)
 print("2. SEGURIDAD SHAREPOINT")
 print("-" * 110)
 
-sharepoint_updates = int(
+if int(
     result.get(
         "sharepoint_updated",
         0,
     )
-)
-
-if sharepoint_updates == 0:
+) == 0:
     ok(
         "FASE 1 no modifico SharePoint"
     )
 else:
     fail(
-        f"FASE 1 modifico {sharepoint_updates} "
-        "registro(s) SharePoint"
+        "FASE 1 modifico SharePoint"
     )
 
 
-# =============================================================================
-# 4. ARCHIVOS GENERADOS
-# =============================================================================
+# ============================================================
+# 3. ARCHIVOS
+# ============================================================
 
 print()
 print("-" * 110)
@@ -216,506 +136,473 @@ print("-" * 110)
 paths = {
     "VALIDOS":
         result.get("path_validos"),
-
     "ERRORES":
         result.get("path_errores"),
-
     "PLANTILLA":
         result.get("path_template"),
-
     "MANIFIESTO":
         result.get("path_manifest"),
 }
 
+for name, file_path in paths.items():
 
-for name, path in paths.items():
-
-    if not path:
-
-        if (
-            name in (
-                "PLANTILLA",
-                "MANIFIESTO",
-            )
-            and validos == 0
-        ):
-            warn(
-                f"{name}: no generado "
-                "porque no existen validos"
-            )
-            continue
-
-        fail(
-            f"{name}: ruta vacia"
-        )
-        continue
-
-    if os.path.exists(path):
-
+    if (
+        file_path
+        and os.path.exists(file_path)
+    ):
         ok(
-            f"{name}: {path}"
+            f"{name}: {file_path}"
         )
-
     else:
-
         fail(
-            f"{name}: archivo no existe "
-            f"({path})"
+            f"{name}: no encontrado"
         )
 
 
-# =============================================================================
-# 5. VALIDAR REPORTE VALIDOS / ERRORES
-# =============================================================================
+# ============================================================
+# 4. REPORTES
+# ============================================================
 
 print()
 print("-" * 110)
-print("4. CONTENIDO DE REPORTES")
+print("4. REPORTES")
 print("-" * 110)
 
 valid_path = paths["VALIDOS"]
 error_path = paths["ERRORES"]
 
+valid_data = pd.read_excel(
+    valid_path,
+    sheet_name="DATOS_TECNICOS",
+    dtype=str,
+)
 
-if valid_path and os.path.exists(
-    valid_path
+error_data = pd.read_excel(
+    error_path,
+    sheet_name="DATOS_TECNICOS",
+    dtype=str,
+)
+
+if len(valid_data) == validos:
+    ok(
+        "Reporte VALIDOS correcto"
+    )
+else:
+    fail(
+        "Cantidad VALIDOS incorrecta"
+    )
+
+if len(error_data) == errores:
+    ok(
+        "Reporte ERRORES correcto"
+    )
+else:
+    fail(
+        "Cantidad ERRORES incorrecta"
+    )
+
+if (
+    "observaciones"
+    in error_data.columns
 ):
 
-    xls = pd.ExcelFile(
-        valid_path
-    )
-
-    required_sheets = {
-        "VALIDOS_RESUMEN",
-        "DATOS_TECNICOS",
-    }
-
-    missing = (
-        required_sheets
-        - set(xls.sheet_names)
-    )
-
-    if missing:
-        fail(
-            "Reporte VALIDOS sin hojas: "
-            + ", ".join(
-                sorted(missing)
-            )
+    client_errors = (
+        error_data["observaciones"]
+        .fillna("")
+        .astype(str)
+        .str.contains(
+            "CLIENTE REQUIERE REVISION",
+            case=False,
+            regex=False,
         )
-    else:
-        ok(
-            "Reporte VALIDOS tiene "
-            "las hojas obligatorias"
-        )
-
-    tech_valid = pd.read_excel(
-        valid_path,
-        sheet_name="DATOS_TECNICOS",
+        .sum()
     )
 
-    if len(tech_valid) == validos:
+    if client_errors == 0:
         ok(
-            "Filas VALIDOS coinciden "
-            "con contador"
+            "Cliente no genera errores "
+            "en FASE 1"
         )
     else:
         fail(
-            "Cantidad del reporte VALIDOS "
-            "no coincide con el resultado"
+            f"{client_errors} usuario(s) "
+            "siguen bloqueados por cliente"
         )
 
-
-if error_path and os.path.exists(
-    error_path
+if (
+    "nombre_cliente"
+    in valid_data.columns
 ):
-
-    xls = pd.ExcelFile(
-        error_path
+    ok(
+        "Cliente original se conserva "
+        "para Ambitos"
+    )
+else:
+    fail(
+        "Se perdio nombre_cliente "
+        "del reporte tecnico"
     )
 
-    required_sheets = {
-        "ERRORES_RESUMEN",
-        "DATOS_TECNICOS",
-    }
 
-    missing = (
-        required_sheets
-        - set(xls.sheet_names)
-    )
-
-    if missing:
-        fail(
-            "Reporte ERRORES sin hojas: "
-            + ", ".join(
-                sorted(missing)
-            )
-        )
-    else:
-        ok(
-            "Reporte ERRORES tiene "
-            "las hojas obligatorias"
-        )
-
-    tech_errors = pd.read_excel(
-        error_path,
-        sheet_name="DATOS_TECNICOS",
-    )
-
-    if len(tech_errors) == errores:
-        ok(
-            "Filas ERRORES coinciden "
-            "con contador"
-        )
-    else:
-        fail(
-            "Cantidad del reporte ERRORES "
-            "no coincide"
-        )
-
-    if (
-        "requiere_revision_cliente"
-        in tech_errors.columns
-    ):
-
-        review_count = int(
-            tech_errors[
-                "requiere_revision_cliente"
-            ]
-            .fillna(False)
-            .astype(bool)
-            .sum()
-        )
-
-        print(
-            f"Casos revision manual : "
-            f"{review_count}"
-        )
-
-        if review_count:
-            ok(
-                "Casos ambiguos de cliente "
-                "quedan identificados"
-            )
-
-
-# =============================================================================
-# 6. VALIDAR PLANTILLA PORTAL
-# =============================================================================
+# ============================================================
+# 5. PLANTILLA OFICIAL
+# ============================================================
 
 print()
 print("-" * 110)
-print("5. PLANTILLA DE USUARIOS")
+print("5. PLANTILLA OFICIAL DEL PORTAL")
 print("-" * 110)
 
 template_path = paths[
     "PLANTILLA"
 ]
 
-if (
+official_path = (
+    Path(ROOT)
+    / "app"
+    / "templates"
+    / "subida_usuarios.xlsx"
+)
+
+xls = pd.ExcelFile(
     template_path
-    and os.path.exists(template_path)
+)
+
+expected_sheets = [
+    "USUARIOS",
+    "CLIENTES",
+    "SERVICIOS",
+    "MAESTROS",
+]
+
+if xls.sheet_names == expected_sheets:
+    ok(
+        "Hojas exactamente iguales "
+        "a plantilla oficial"
+    )
+else:
+    fail(
+        "Hojas incorrectas: "
+        + str(xls.sheet_names)
+    )
+
+
+users = pd.read_excel(
+    template_path,
+    sheet_name="USUARIOS",
+    dtype=str,
+    keep_default_na=False,
+)
+
+expected_columns = [
+    "NOMBRE",
+    "APELLIDO",
+    "CORREO",
+    "PAIS",
+    "PERFIL DE USUARIO",
+    "TIPO DE USUARIO",
+    "TIPO DE DOCUMENTO IDENTIDAD",
+    "DOCUMENTO",
+    "SOCIEDAD",
+    "CLIENTE",
+    "SERVICIO",
+]
+
+if (
+    list(users.columns)
+    == expected_columns
 ):
-
-    xls = pd.ExcelFile(
-        template_path
+    ok(
+        "Columnas USUARIOS correctas"
+    )
+else:
+    fail(
+        "Columnas USUARIOS incorrectas"
     )
 
-    expected_sheets = [
-        "USUARIOS",
-        "SERVICIOS",
-        "CONTROL",
+
+if len(users) == validos:
+    ok(
+        "Plantilla contiene exactamente "
+        "los usuarios validos"
+    )
+else:
+    fail(
+        f"USUARIOS={len(users)} "
+        f"VALIDOS={validos}"
+    )
+
+
+client_values = (
+    users["CLIENTE"]
+    .fillna("")
+    .astype(str)
+    .str.strip()
+)
+
+if (
+    client_values == ""
+).all():
+    ok(
+        "CLIENTE vacio para todos "
+        "los usuarios"
+    )
+else:
+    fail(
+        "Existen usuarios con CLIENTE"
+    )
+
+
+service_values = (
+    users["SERVICIO"]
+    .fillna("")
+    .astype(str)
+    .str.strip()
+)
+
+if (
+    service_values.ne("").all()
+    and service_values.isin(
+        {"1", "2"}
+    ).all()
+):
+    ok(
+        "SERVICIO asignado correctamente "
+        "a todos los usuarios"
+    )
+else:
+    fail(
+        "Existen valores SERVICIO "
+        "vacios o desconocidos"
+    )
+
+
+clients = pd.read_excel(
+    template_path,
+    sheet_name="CLIENTES",
+    dtype=str,
+)
+
+if (
+    list(clients.columns)
+    == ["RUC", "NOMBRE", "GRUPO"]
+    and clients.empty
+):
+    ok(
+        "CLIENTES conserva solo encabezados"
+    )
+else:
+    fail(
+        "Hoja CLIENTES fue modificada"
+    )
+
+
+services = pd.read_excel(
+    template_path,
+    sheet_name="SERVICIOS",
+    dtype=str,
+    keep_default_na=False,
+)
+
+country_codes = (
+    valid_data["pais"]
+    .fillna("")
+    .astype(str)
+    .str.strip()
+    .str.upper()
+)
+
+country_codes = {
+    value
+    for value in country_codes
+    if value
+}
+
+expected_service = {
+    "SLV": "PORTAL ACCESO CAM",
+    "PER": "PORTAL ACCESO",
+}
+
+if len(country_codes) == 1:
+
+    country_code = next(
+        iter(country_codes)
+    )
+
+    service_name = expected_service.get(
+        country_code
+    )
+
+else:
+
+    service_name = None
+
+
+expected_services = pd.DataFrame(
+    [
+        {
+            "SERVICIO": service_name,
+            "PARAMETRO": "PACCESO_PROVEEDOR",
+            "GRUPO": "1",
+        },
+        {
+            "SERVICIO": service_name,
+            "PARAMETRO": "PACCESO_CLIENTE",
+            "GRUPO": "2",
+        },
     ]
+)
 
-    if xls.sheet_names == expected_sheets:
-
-        ok(
-            "Plantilla tiene exactamente "
-            "USUARIOS + SERVICIOS + CONTROL"
-        )
-
-    else:
-
-        fail(
-            "Hojas incorrectas en plantilla: "
-            + str(xls.sheet_names)
-        )
-
-    users = pd.read_excel(
-        template_path,
-        sheet_name="USUARIOS",
-    )
-
-    services = pd.read_excel(
-        template_path,
-        sheet_name="SERVICIOS",
-    )
-
-    expected_columns = [
-        "NOMBRE",
-        "APELLIDO",
-        "CORREO",
-        "PAIS",
-        "PERFIL DE USUARIO",
-        "TIPO DE USUARIO",
-        "TIPO DE DOCUMENTO IDENTIDAD",
-        "DOCUMENTO",
-        "SOCIEDAD",
-        "CLIENTE",
-        "SERVICIO",
+services_compare = (
+    services[
+        [
+            "SERVICIO",
+            "PARAMETRO",
+            "GRUPO",
+        ]
     ]
+    .fillna("")
+    .astype(str)
+    .reset_index(drop=True)
+)
 
-    if list(users.columns) == expected_columns:
-
-        ok(
-            "Columnas USUARIOS correctas"
-        )
-
-    else:
-
-        fail(
-            "Columnas USUARIOS diferentes "
-            "a la plantilla requerida"
-        )
-
-    if len(users) == validos:
-
-        ok(
-            "Cantidad de usuarios plantilla "
-            "coincide con validos"
-        )
-
-    else:
-
-        fail(
-            "Cantidad de usuarios de la "
-            "plantilla no coincide"
-        )
-
-    if len(services) == 2:
-
-        ok(
-            "Hoja SERVICIOS contiene "
-            "las 2 filas requeridas"
-        )
-
-    else:
-
-        fail(
-            "Hoja SERVICIOS no contiene "
-            "exactamente 2 filas"
-        )
+if services_compare.equals(
+    expected_services
+):
+    ok(
+        "Hoja SERVICIOS correcta "
+        f"para {country_code}"
+    )
+else:
+    fail(
+        "Contenido de SERVICIOS incorrecto"
+    )
 
 
-# =============================================================================
-# 6. VALIDAR HOJA CONTROL
-# =============================================================================
+# ============================================================
+# 6. COMPARACION BINARIA
+# ============================================================
 
 print()
 print("-" * 110)
-print("6. HOJA CONTROL")
+print("6. INTEGRIDAD DE LA PLANTILLA")
 print("-" * 110)
 
-if (
-    template_path
-    and os.path.exists(template_path)
-):
+with zipfile.ZipFile(
+    official_path,
+    "r",
+) as official:
 
-    control = pd.read_excel(
+    with zipfile.ZipFile(
         template_path,
-        sheet_name="CONTROL",
-        dtype=str,
-    )
+        "r",
+    ) as generated:
 
-    expected_control_columns = [
-        "ITEM_ID",
-        "EMAIL",
-        "PROVEEDOR",
-        "NIT_PROVEEDOR",
-        "CLIENTE_ORIGINAL",
-        "CLIENTE_NORMALIZADO",
-        "ESTADO",
-        "OBSERVACION",
-    ]
-
-    if list(control.columns) == expected_control_columns:
-        ok(
-            "Columnas CONTROL correctas"
-        )
-    else:
-        fail(
-            "Columnas CONTROL incorrectas: "
-            + str(list(control.columns))
+        official_files = set(
+            official.namelist()
         )
 
-    if len(control) == total:
-        ok(
-            f"CONTROL contiene los {total} registros"
-        )
-    else:
-        fail(
-            f"CONTROL contiene {len(control)} registros "
-            f"y se esperaban {total}"
+        generated_files = set(
+            generated.namelist()
         )
 
-    counts = (
-        control["ESTADO"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-        .value_counts()
-        .to_dict()
-    )
-
-    listos = int(
-        counts.get(
-            "LISTO_PARA_CARGA",
-            0,
-        )
-    )
-
-    error_datos = int(
-        counts.get(
-            "ERROR_DATOS",
-            0,
-        )
-    )
-
-    revision_cliente = int(
-        counts.get(
-            "REVISION_CLIENTE",
-            0,
-        )
-    )
-
-    print()
-    print(
-        f"LISTO_PARA_CARGA    : {listos}"
-    )
-    print(
-        f"ERROR_DATOS         : {error_datos}"
-    )
-    print(
-        f"REVISION_CLIENTE    : {revision_cliente}"
-    )
-
-    if listos == validos:
-        ok(
-            "LISTO_PARA_CARGA coincide con validos"
-        )
-    else:
-        fail(
-            f"LISTO_PARA_CARGA={listos}, "
-            f"pero validos={validos}"
-        )
-
-    if revision_cliente == revision:
-        ok(
-            "REVISION_CLIENTE coincide "
-            "con casos de revision"
-        )
-    else:
-        fail(
-            f"REVISION_CLIENTE={revision_cliente}, "
-            f"pero revision={revision}"
-        )
-
-    expected_error_datos = (
-        errores - revision
-    )
-
-    if error_datos == expected_error_datos:
-        ok(
-            "ERROR_DATOS coincide con errores "
-            "no asociados a revision cliente"
-        )
-    else:
-        fail(
-            f"ERROR_DATOS={error_datos}, "
-            f"pero se esperaban "
-            f"{expected_error_datos}"
-        )
-
-    estados_validos = {
-        "LISTO_PARA_CARGA",
-        "ERROR_DATOS",
-        "REVISION_CLIENTE",
-    }
-
-    estados_encontrados = set(
-        control["ESTADO"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-    )
-
-    desconocidos = (
-        estados_encontrados
-        - estados_validos
-    )
-
-    if not desconocidos:
-        ok(
-            "CONTROL no contiene estados desconocidos"
-        )
-    else:
-        fail(
-            "Estados desconocidos en CONTROL: "
-            + ", ".join(
-                sorted(desconocidos)
+        if (
+            official_files
+            == generated_files
+        ):
+            ok(
+                "Estructura interna XLSX "
+                "conservada"
             )
+        else:
+            fail(
+                "Cambios en estructura "
+                "interna XLSX"
+            )
+
+        changed = []
+
+        for member in official_files:
+
+            if member in {
+                "xl/worksheets/sheet1.xml",
+                "xl/worksheets/sheet3.xml",
+            }:
+                continue
+
+            if (
+                official.read(member)
+                != generated.read(member)
+            ):
+                changed.append(
+                    member
+                )
+
+        if not changed:
+            ok(
+                "CLIENTES, MAESTROS "
+                "y configuracion original intactos"
+            )
+        else:
+            fail(
+                "Se modificaron archivos "
+                "internos: "
+                + ", ".join(changed)
+            )
+
+        usuarios_xml = generated.read(
+            "xl/worksheets/sheet1.xml"
+        ).decode(
+            "utf-8"
         )
 
+        if (
+            '<x14:dataValidations count="5"'
+            in usuarios_xml
+        ):
+            ok(
+                "Validaciones originales "
+                "de USUARIOS preservadas"
+            )
+        else:
+            fail(
+                "Se perdieron validaciones "
+                "de USUARIOS"
+            )
 
-# =============================================================================
+
+# ============================================================
 # 7. MANIFIESTO
-# =============================================================================
+# ============================================================
 
 print()
 print("-" * 110)
 print("7. MANIFIESTO FASE 2")
 print("-" * 110)
 
-manifest_path = paths[
-    "MANIFIESTO"
-]
+manifest = pd.read_excel(
+    paths["MANIFIESTO"],
+    dtype=str,
+)
 
-if (
-    manifest_path
-    and os.path.exists(
-        manifest_path
+if len(manifest) == validos:
+    ok(
+        "Manifiesto contiene exactamente "
+        "los usuarios enviados"
     )
-):
-
-    manifest = pd.read_excel(
-        manifest_path
+else:
+    fail(
+        "Manifiesto no coincide "
+        "con usuarios enviados"
     )
 
-    if len(manifest) == validos:
 
-        ok(
-            "Manifiesto contiene exactamente "
-            "los usuarios enviados"
-        )
-
-    else:
-
-        fail(
-            "Filas del manifiesto no coinciden "
-            "con validos"
-        )
-
-
-# =============================================================================
+# ============================================================
 # RESULTADO
-# =============================================================================
+# ============================================================
 
 print()
 print("=" * 110)
-
-if warnings:
-    print(
-        f"WARNINGS: {len(warnings)}"
-    )
 
 if errors:
 
@@ -725,13 +612,16 @@ if errors:
     )
 
     for error in errors:
-        print(f" - {error}")
+        print(
+            f" - {error}"
+        )
 
     raise SystemExit(1)
 
 
 print("RESULTADO: OK")
 print(
-    "Pipeline de usuarios funcionando correctamente."
+    "Plantilla de usuarios compatible "
+    "con formato oficial."
 )
 print("=" * 110)

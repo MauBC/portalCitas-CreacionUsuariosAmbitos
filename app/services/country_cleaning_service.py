@@ -1,55 +1,75 @@
 ﻿import pandas as pd
 
-from app.services.per_cleaning_service import PerCleaningService
-from app.services.slv_cleaning_service import SlvCleaningService
+from app.services.per_cleaning_service import (
+    PerCleaningService,
+)
+from app.services.slv_cleaning_service import (
+    SlvCleaningService,
+)
 
 
 class CountryCleaningService:
 
     def __init__(self):
-        self.per_cleaner = PerCleaningService()
-        self.slv_cleaner = SlvCleaningService()
+        self.cleaners = {
+            "PER": PerCleaningService(),
+            "SLV": SlvCleaningService(),
+        }
 
-    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
+    def clean(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         if df.empty:
             return df.copy()
 
-        df = df.copy()
+        result = df.copy()
 
-        # Compatibilidad con el flujo antiguo de Peru.
-        # Si no existe pais, asumimos PER.
-        if "pais" not in df.columns:
-            df["pais"] = "PER"
+        if "pais" not in result.columns:
+            result["pais"] = "PER"
 
-        df["pais"] = (
-            df["pais"]
+        result["pais"] = (
+            result["pais"]
             .fillna("")
             .astype(str)
             .str.strip()
             .str.upper()
         )
 
-        results = []
+        cleaned_groups = []
 
-        for pais, group in df.groupby("pais", dropna=False):
+        for country_code, group in result.groupby(
+            "pais",
+            dropna=False,
+            sort=False,
+        ):
+            cleaner = self.cleaners.get(
+                country_code
+            )
 
-            if pais == "PER":
-                cleaned = self.per_cleaner.clean(group)
+            if cleaner is None:
+                invalid = group.copy()
+                invalid["estado"] = "ERROR"
+                invalid["observaciones"] = (
+                    f"PAIS NO SOPORTADO: "
+                    f"{country_code}"
+                )
+                invalid["advertencias"] = ""
+                cleaned_groups.append(
+                    invalid
+                )
+                continue
 
-            elif pais == "SLV":
-                cleaned = self.slv_cleaner.clean(group)
+            cleaned_groups.append(
+                cleaner.clean(group)
+            )
 
-            else:
-                cleaned = group.copy()
-                cleaned["estado"] = "ERROR"
-                cleaned["observaciones"] = f"Pais no soportado: {pais}"
+        if not cleaned_groups:
+            return result
 
-            results.append(cleaned)
-
-        if not results:
-            return df
-
-        result = pd.concat(results).sort_index()
-
-        return result
-
+        return (
+            pd.concat(
+                cleaned_groups
+            )
+            .sort_index()
+        )

@@ -1,8 +1,20 @@
 ﻿import re
+
 import pandas as pd
+
+from app.config.country_data_rules import (
+    COUNTRY_DATA_RULES,
+)
+from app.services.common_cleaning_service import (
+    CommonCleaningService,
+)
 
 
 class SlvCleaningService:
+    PERFILES_VALIDOS = {
+        "CLIENTE",
+        "PROVEEDOR",
+    }
 
     REQUIRED_COLUMNS = [
         "_item_id",
@@ -10,6 +22,8 @@ class SlvCleaningService:
         "creado",
         "nombre",
         "apellido",
+        "apellido_pat",
+        "apellido_mat",
         "email",
         "telefono",
         "tipo_documento",
@@ -21,166 +35,310 @@ class SlvCleaningService:
         "capacitacion",
     ]
 
-    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
+    def __init__(self):
+        self.common = CommonCleaningService()
+        self.rules = COUNTRY_DATA_RULES["SLV"]
 
-        for col in self.REQUIRED_COLUMNS:
-            if col not in df.columns:
-                df[col] = None
+    def clean(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        result = df.copy()
 
-        df["pais"] = df["pais"].apply(
-            lambda x: self._clean_text(x).upper()
+        for column in self.REQUIRED_COLUMNS:
+            if column not in result.columns:
+                result[column] = ""
+
+        result["pais"] = "SLV"
+        result["tipo_documento"] = "DUI"
+
+        result["_numero_documento_original"] = (
+            result["numero_documento"].copy()
+        )
+        result["_nit_proveedor_original"] = (
+            result["nit_proveedor"].copy()
         )
 
-        df["nombre"] = df["nombre"].apply(
-            lambda x: self._clean_text(x).upper()
+        for column in [
+            "nombre",
+            "apellido",
+            "apellido_pat",
+            "apellido_mat",
+            "nombre_proveedor",
+            "nombre_cliente",
+        ]:
+            result[column] = result[column].apply(
+                self.common.clean_text
+            )
+
+        result["email"] = result["email"].apply(
+            self.common.clean_email
         )
 
-        df["apellido"] = df["apellido"].apply(
-            lambda x: self._clean_text(x).upper()
+        for column in [
+            "telefono",
+            "numero_documento",
+            "nit_proveedor",
+        ]:
+            result[column] = result[column].apply(
+                self.common.clean_digits
+            )
+
+        result["perfil"] = result["perfil"].apply(
+            self.common.clean_text
         )
 
-        df["email"] = df["email"].apply(
-            self._clean_email
-        )
+        result.loc[
+            result["perfil"].eq(""),
+            "perfil",
+        ] = "PROVEEDOR"
 
-        df["telefono"] = df["telefono"].apply(
-            self._clean_phone
-        )
-
-        df["numero_documento"] = df["numero_documento"].apply(
-            self._only_digits
-        )
-
-        df["nit_proveedor"] = df["nit_proveedor"].apply(
-            self._only_digits
-        )
-
-        df["nombre_proveedor"] = df["nombre_proveedor"].apply(
-            lambda x: self._clean_text(x).upper()
-        )
-
-        # nombre_cliente se conserva con formato legible
-        df["nombre_cliente"] = df["nombre_cliente"].apply(
-            self._clean_text
-        )
-
-        df["perfil"] = "PROVEEDOR"
-        df["tipo_documento"] = "DUI"
-
-        df["dui_valido"] = df["numero_documento"].apply(
-            self._valid_dui
-        )
-
-        df["nit_valido"] = df["nit_proveedor"].apply(
-            self._valid_nit
-        )
-
-        df["telefono_valido"] = df["telefono"].apply(
-            self._valid_phone
-        )
-
-        df["correo_valido"] = df["email"].apply(
-            self._valid_email
-        )
-
-        df["observaciones"] = df.apply(
-            self._build_observaciones,
-            axis=1
-        )
-
-        df["estado"] = df["observaciones"].apply(
-            lambda x: "OK"
-            if x is None or pd.isna(x) or str(x).strip() == ""
-            else "ERROR"
-        )
-
-        return df
-
-    def _clean_text(self, value) -> str:
-        if value is None or pd.isna(value):
-            return ""
-
-        return re.sub(
-            r"\s+",
-            " ",
-            str(value)
-        ).strip()
-
-    def _only_digits(self, value) -> str:
-        return re.sub(
-            r"\D",
-            "",
-            self._clean_text(value)
-        )
-
-    def _clean_email(self, value) -> str:
-        return (
-            self._clean_text(value)
-            .replace(" ", "")
-            .lower()
-        )
-
-    def _clean_phone(self, value) -> str:
-        digits = self._only_digits(value)
-
-        if digits.startswith("503") and len(digits) == 11:
-            digits = digits[3:]
-
-        return digits
-
-    def _valid_dui(self, value) -> bool:
-        return bool(
-            re.fullmatch(r"\d{9}", value or "")
-        )
-
-    def _valid_nit(self, value) -> bool:
-        return bool(
-            re.fullmatch(r"\d{9}|\d{14}", value or "")
-        )
-
-    def _valid_phone(self, value) -> bool:
-        return bool(
-            re.fullmatch(r"\d{8}", value or "")
-        )
-
-    def _valid_email(self, value) -> bool:
-        return bool(
-            re.fullmatch(
-                r"[^@\s]+@[^@\s]+\.[^@\s]+",
-                value or ""
+        result["dui_valido"] = (
+            result["numero_documento"]
+            .apply(
+                lambda value:
+                    self.common.valid_exact_digits(
+                        value,
+                        self.rules[
+                            "person_document_length"
+                        ],
+                    )
             )
         )
 
-    def _build_observaciones(self, row) -> str | None:
-        errores = []
+        result["nit_valido"] = (
+            result.apply(
+                lambda row:
+                    self._valid_nit(
+                        clean_value=row.get(
+                            "nit_proveedor"
+                        ),
+                        original_value=row.get(
+                            "_nit_proveedor_original"
+                        ),
+                    ),
+                axis=1,
+            )
+        )
 
-        if row.get("pais") != "SLV":
-            errores.append("Pais invalido")
+        result["correo_valido"] = (
+            result["email"]
+            .apply(
+                self.common.valid_email
+            )
+        )
 
-        if not row.get("nombre"):
-            errores.append("Nombre vacio")
+        validation = result.apply(
+            self._validate_row,
+            axis=1,
+            result_type="expand",
+        )
 
-        if not row.get("apellido"):
-            errores.append("Apellido vacio")
+        result["observaciones"] = (
+            validation["errores"]
+        )
+        result["advertencias"] = (
+            validation["advertencias"]
+        )
 
-        if not row.get("dui_valido"):
-            errores.append("DUI invalido")
+        result["estado"] = (
+            result["observaciones"]
+            .apply(
+                lambda value:
+                    "OK"
+                    if not str(value or "").strip()
+                    else "ERROR"
+            )
+        )
 
-        if not row.get("nit_valido"):
-            errores.append("NIT invalido")
+        return result
 
-        if not row.get("telefono_valido"):
-            errores.append("Telefono invalido")
+    def _valid_nit(
+        self,
+        clean_value,
+        original_value,
+    ) -> bool:
+        if not self.common.numeric_input_has_valid_chars(
+            original_value
+        ):
+            return False
 
-        if not row.get("correo_valido"):
-            errores.append("Correo invalido")
+        return self.common.valid_exact_digits(
+            clean_value,
+            self.rules[
+                "company_document_length"
+            ],
+        )
 
-        if not row.get("nombre_proveedor"):
-            errores.append("Empresa proveedor vacia")
+    def _validate_row(
+        self,
+        row,
+    ) -> pd.Series:
+        errors = []
+        warnings = []
 
-        if not row.get("nombre_cliente"):
-            errores.append("Cliente vacio")
+        nombre = str(
+            row.get("nombre") or ""
+        ).strip()
 
-        return " | ".join(errores) if errores else None
+        apellido = self._get_paternal_last_name(
+            row
+        )
 
+        email = str(
+            row.get("email") or ""
+        ).strip()
+
+        document = str(
+            row.get("numero_documento")
+            or ""
+        ).strip()
+
+        original_document = str(
+            row.get("_numero_documento_original")
+            or ""
+        ).strip()
+
+        profile = str(
+            row.get("perfil") or ""
+        ).strip()
+
+        provider_name = str(
+            row.get("nombre_proveedor")
+            or ""
+        ).strip()
+
+        client_name = str(
+            row.get("nombre_cliente")
+            or ""
+        ).strip()
+
+        nit = str(
+            row.get("nit_proveedor")
+            or ""
+        ).strip()
+
+        original_nit = str(
+            row.get("_nit_proveedor_original")
+            or ""
+        ).strip()
+
+        if not nombre:
+            errors.append(
+                "NOMBRE OBLIGATORIO"
+            )
+
+        if not apellido:
+            errors.append(
+                "APELLIDO PATERNO OBLIGATORIO"
+            )
+
+        if not email:
+            errors.append(
+                "CORREO OBLIGATORIO"
+            )
+        elif not bool(
+            row.get("correo_valido")
+        ):
+            errors.append(
+                "CORREO INVALIDO"
+            )
+
+        if not original_document:
+            errors.append(
+                "DUI OBLIGATORIO"
+            )
+        elif not bool(
+            row.get("dui_valido")
+        ):
+            warnings.append(
+                "DUI CON FORMATO INUSUAL"
+            )
+
+        phone = str(
+            row.get("telefono") or ""
+        ).strip()
+
+        if phone and not self._valid_phone(
+            phone
+        ):
+            warnings.append(
+                "TELEFONO CON FORMATO INUSUAL"
+            )
+
+        if profile not in self.PERFILES_VALIDOS:
+            errors.append(
+                "TIPO DE USUARIO INVALIDO"
+            )
+
+        if profile == "PROVEEDOR":
+            if len(provider_name) <= 2:
+                errors.append(
+                    "NOMBRE PROVEEDOR OBLIGATORIO"
+                )
+
+            if not original_nit:
+                errors.append(
+                    "NIT PROVEEDOR OBLIGATORIO"
+                )
+            elif not bool(
+                row.get("nit_valido")
+            ):
+                errors.append(
+                    "NIT PROVEEDOR INVALIDO"
+                )
+
+            if len(client_name) <= 2:
+                errors.append(
+                    "NOMBRE CLIENTE OBLIGATORIO"
+                )
+
+        elif profile == "CLIENTE":
+            if len(client_name) <= 2:
+                errors.append(
+                    "NOMBRE CLIENTE OBLIGATORIO"
+                )
+
+        return pd.Series({
+            "errores":
+                self.common.join_messages(
+                    errors
+                ),
+            "advertencias":
+                self.common.join_messages(
+                    warnings
+                ),
+        })
+
+    def _get_paternal_last_name(
+        self,
+        row,
+    ) -> str:
+        paternal = str(
+            row.get("apellido_pat")
+            or ""
+        ).strip()
+
+        if paternal:
+            return paternal
+
+        return str(
+            row.get("apellido")
+            or ""
+        ).strip()
+
+    @staticmethod
+    def _valid_phone(value) -> bool:
+        digits = str(
+            value or ""
+        ).strip()
+
+        if digits.startswith("503"):
+            digits = digits[3:]
+
+        return bool(
+            re.fullmatch(
+                r"\d{8}",
+                digits,
+            )
+        )

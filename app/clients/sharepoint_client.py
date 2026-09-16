@@ -1,4 +1,4 @@
-﻿from app.clients.graph_client import GraphClient
+from app.clients.graph_client import GraphClient
 from app.config.settings import settings
 
 
@@ -12,7 +12,10 @@ class SharePointClient:
         if self._site_id_cache:
             return self._site_id_cache
 
-        endpoint = f"/sites/{settings.SHAREPOINT_HOSTNAME}:{settings.SHAREPOINT_SITE_PATH}"
+        endpoint = (
+            f"/sites/{settings.SHAREPOINT_HOSTNAME}:"
+            f"{settings.SHAREPOINT_SITE_PATH}"
+        )
         data = self.graph.get(endpoint)
         self._site_id_cache = data["id"]
         return self._site_id_cache
@@ -23,13 +26,25 @@ class SharePointClient:
         return self.graph.get_all_pages(endpoint)
 
     def get_list_by_name(self, list_name: str):
-        lists = self.get_lists()
+        target = list_name.strip().lower()
 
-        for item in lists:
-            if (str(item.get("displayName") or "").strip().lower() == list_name.strip().lower() or str(item.get("name") or "").strip().lower() == list_name.strip().lower()):
+        for item in self.get_lists():
+            display_name = str(
+                item.get("displayName") or ""
+            ).strip().lower()
+            internal_name = str(
+                item.get("name") or ""
+            ).strip().lower()
+
+            if target in {
+                display_name,
+                internal_name,
+            }:
                 return item
 
-        raise RuntimeError(f"No se encontro la lista '{list_name}'.")
+        raise RuntimeError(
+            f"No se encontro la lista '{list_name}'."
+        )
 
     def get_list_id(self, list_name: str) -> str:
         key = list_name.strip().lower()
@@ -46,37 +61,40 @@ class SharePointClient:
         site_id = self.get_site_id()
         list_id = self.get_list_id(list_name)
 
-        endpoint = f"/sites/{site_id}/lists/{list_id}/items"
+        endpoint = (
+            f"/sites/{site_id}/lists/"
+            f"{list_id}/items"
+        )
         params = {"$expand": "fields"}
-        return self.graph.get_all_pages(endpoint, params=params)
+        return self.graph.get_all_pages(
+            endpoint,
+            params=params,
+        )
 
     def get_list_columns(self, list_name: str):
         site_id = self.get_site_id()
         list_id = self.get_list_id(list_name)
 
-        endpoint = f"/sites/{site_id}/lists/{list_id}/columns"
+        endpoint = (
+            f"/sites/{site_id}/lists/"
+            f"{list_id}/columns"
+        )
         return self.graph.get_all_pages(endpoint)
 
-    def update_list_item_fields(self, list_name: str, item_id: str, fields: dict):
+    def update_list_item_fields(
+        self,
+        list_name: str,
+        item_id: str,
+        fields: dict,
+    ):
         site_id = self.get_site_id()
         list_id = self.get_list_id(list_name)
 
-        endpoint = f"/sites/{site_id}/lists/{list_id}/items/{item_id}/fields"
-        return self.graph.patch(endpoint, fields)
-
-    def build_update_request(self, list_name: str, item_id: str, fields: dict, request_id: str):
-        site_id = self.get_site_id()
-        list_id = self.get_list_id(list_name)
-
-        return {
-            "id": request_id,
-            "method": "PATCH",
-            "url": f"/sites/{site_id}/lists/{list_id}/items/{item_id}/fields",
-            "headers": {
-                "Content-Type": "application/json"
-            },
-            "body": fields,
-        }
-
-    def batch_update_list_item_fields(self, requests_list: list[dict]):
-        return self.graph.batch(requests_list)
+        endpoint = (
+            f"/sites/{site_id}/lists/{list_id}/items/"
+            f"{item_id}/fields"
+        )
+        return self.graph.patch(
+            endpoint,
+            fields,
+        )
