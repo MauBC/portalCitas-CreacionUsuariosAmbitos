@@ -112,6 +112,129 @@ def run_provider_phase2_apply(
     }
 
 
+def run_provider_phase2_local_copy(
+    run_folder: str,
+    portal_result_excel: str,
+    shared_url: str,
+) -> dict:
+    folder = Path(
+        run_folder
+    )
+
+    phase2 = (
+        ProviderPhase2Service()
+    )
+
+    preview = phase2.preview(
+        run_folder=str(folder),
+        portal_error_excel=
+            portal_result_excel,
+    )
+
+    summary = preview[
+        "summary"
+    ]
+
+    if summary[
+        "relaciones_sin_resultado"
+    ] != 0:
+        raise RuntimeError(
+            "Hay relaciones sin resultado "
+            "de cuenta."
+        )
+
+    evidence_path = (
+        phase2.export_evidence(
+            run_folder=str(folder),
+            preview=preview,
+        )
+    )
+
+    local = (
+        ProviderExcelRemoteApplyService()
+        .export_local_copy(
+            shared_url=shared_url,
+            relation_results=preview[
+                "relation_results"
+            ],
+            output_dir=str(folder),
+        )
+    )
+
+    return {
+        "ok": bool(
+            local["ok"]
+        ),
+        "remote_write": False,
+        "cuentas_enviadas":
+            summary[
+                "cuentas_enviadas"
+            ],
+        "cuentas_disponibles":
+            summary[
+                "cuentas_disponibles"
+            ],
+        "cuentas_no_creadas":
+            summary[
+                "cuentas_no_creadas"
+            ],
+        "relaciones_total":
+            summary[
+                "relaciones_total"
+            ],
+        "relaciones_creado_1":
+            summary[
+                "relaciones_creado_1"
+            ],
+        "relaciones_creado_2":
+            summary[
+                "relaciones_creado_2"
+            ],
+        "cambios_aplicados":
+            local[
+                "changes_applied"
+            ],
+        "verificado_creado_1":
+            local[
+                "created_1"
+            ],
+        "verificado_creado_2":
+            local[
+                "created_2"
+            ],
+        "filas_verificadas":
+            local[
+                "verified_rows"
+            ],
+        "source_etag":
+            local[
+                "source_etag"
+            ],
+        "backup_path":
+            local[
+                "backup_path"
+            ],
+        "candidate_path":
+            local[
+                "candidate_path"
+            ],
+        "report_path":
+            local[
+                "report_path"
+            ],
+        "evidence_path":
+            evidence_path,
+        "sha256_source":
+            local[
+                "sha256_source"
+            ],
+        "sha256_candidate":
+            local[
+                "sha256_candidate"
+            ],
+    }
+
+
 def _print_result(
     result: dict,
 ) -> None:

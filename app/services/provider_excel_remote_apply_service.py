@@ -5,6 +5,7 @@ from hashlib import sha256
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 import re
+import time
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 
@@ -18,7 +19,22 @@ from app.services.provider_excel_remote_status_service import (
 )
 
 
+class ProviderExcelRemoteLockedError(RuntimeError):
+    """El Excel remoto permanece bloqueado para escritura."""
+
+
 class ProviderExcelRemoteApplyService:
+    UPLOAD_RETRY_STATUS = {
+        423,
+        429,
+        500,
+        502,
+        503,
+        504,
+    }
+
+    UPLOAD_MAX_RETRIES = 5
+    UPLOAD_MAX_WAIT_SECONDS = 15
     WORKBOOK_NS = (
         "http://schemas.openxmlformats.org/"
         "spreadsheetml/2006/main"
@@ -133,6 +149,7 @@ class ProviderExcelRemoteApplyService:
         self,
         metadata: dict,
         content: bytes,
+        max_retries: int | None = None,
     ) -> dict:
         if not content:
             raise ValueError(
@@ -151,45 +168,174 @@ class ProviderExcelRemoteApplyService:
 
         if not drive_id or not item_id:
             raise ValueError(
-                "Faltan drive_id/item_id para subir el archivo."
+                "Faltan drive_id/item_id "
+                "para subir el archivo."
             )
-
-        token = (
-            MsalAuthService()
-            .get_access_token()
-        )
 
         endpoint = (
             "https://graph.microsoft.com/v1.0/"
-            f"drives/{drive_id}/items/{item_id}/content"
+            f"drives/{drive_id}/items/"
+            f"{item_id}/content"
         )
 
-        with requests.put(
-            endpoint,
-            headers={
-                "Authorization":
-                    f"Bearer {token}",
-                "Content-Type":
-                    "application/vnd.openxmlformats-"
-                    "officedocument.spreadsheetml.sheet",
-            },
-            data=content,
-            timeout=120,
-        ) as response:
-            if not response.ok:
-                detail = (
-                    response.text[:1000]
-                    if response.text
-                    else ""
+        attempts = (
+            int(max_retries)
+            if max_retries is not None
+            else self.UPLOAD_MAX_RETRIES
+        )
+
+        if attempts <= 0:
+            raise ValueError(
+                "max_retries debe ser mayor que cero."
+            )
+
+        last_status = None
+        last_detail = ""
+
+        for attempt in range(attempts):
+            token = (
+                MsalAuthService()
+                .get_access_token()
+            )
+
+            try:
+                with requests.put(
+                    endpoint,
+                    headers={
+                        "Authorization":
+                            f"Bearer {token}",
+                        "Content-Type":
+                            (
+                                "application/vnd."
+                                "openxmlformats-officedocument."
+                                "spreadsheetml.sheet"
+                            ),
+                    },
+                    data=content,
+                    timeout=120,
+                ) as response:
+                    if response.ok:
+                        return response.json()
+
+                    last_status = (
+                        response.status_code
+                    )
+
+                    last_detail = (
+                        response.text[:1000]
+                        if response.text
+                        else ""
+                    )
+
+                    retryable = (
+                        response.status_code
+                        in self.UPLOAD_RETRY_STATUS
+                    )
+
+                    has_next_attempt = (
+                        attempt
+                        < attempts - 1
+                    )
+
+                    if (
+                        retryable
+                        and has_next_attempt
+                    ):
+                        retry_after = (
+                            response.headers.get(
+                                "Retry-After"
+                            )
+                        )
+
+                        if (
+                            retry_after
+                            and str(
+                                retry_after
+                            ).isdigit()
+                        ):
+                            wait_seconds = int(
+                                retry_after
+                            )
+                        else:
+                            wait_seconds = min(
+                                2 ** attempt,
+                                self.UPLOAD_MAX_WAIT_SECONDS,
+                            )
+
+                        time.sleep(
+                            wait_seconds
+                        )
+
+                        continue
+
+                    if (
+                        response.status_code
+                        == 423
+                    ):
+                        raise (
+                            ProviderExcelRemoteLockedError(
+                                "El Excel remoto esta "
+                                "bloqueado en SharePoint. "
+                                "Cierra el archivo en Excel, "
+                                "Teams o Excel Online y vuelve "
+                                "a generar el preview antes "
+                                "de aplicar los cambios. "
+                                "No se modifico el archivo "
+                                "remoto. "
+                                f"HTTP 423. {last_detail}"
+                            )
+                        )
+
+                    raise RuntimeError(
+                        "No se pudo reemplazar "
+                        "el Excel remoto. "
+                        f"HTTP "
+                        f"{response.status_code}. "
+                        f"{last_detail}"
+                    )
+
+            except (
+                ProviderExcelRemoteLockedError,
+                RuntimeError,
+            ):
+                raise
+
+            except requests.RequestException as exc:
+                has_next_attempt = (
+                    attempt
+                    < attempts - 1
                 )
+
+                if has_next_attempt:
+                    wait_seconds = min(
+                        2 ** attempt,
+                        self.UPLOAD_MAX_WAIT_SECONDS,
+                    )
+
+                    time.sleep(
+                        wait_seconds
+                    )
+
+                    continue
 
                 raise RuntimeError(
-                    "No se pudo reemplazar el Excel remoto. "
-                    f"HTTP {response.status_code}. "
-                    f"{detail}"
-                )
+                    "No se pudo reemplazar el Excel "
+                    "remoto por un error de red. "
+                    f"{type(exc).__name__}: {exc}"
+                ) from exc
 
-            return response.json()
+        if last_status == 423:
+            raise ProviderExcelRemoteLockedError(
+                "El Excel remoto permanece "
+                "bloqueado en SharePoint. "
+                "No se modifico el archivo remoto."
+            )
+
+        raise RuntimeError(
+            "No se pudo reemplazar el Excel remoto. "
+            f"HTTP {last_status}. "
+            f"{last_detail}"
+        )
 
     def build_updated_content(
         self,
@@ -370,6 +516,283 @@ class ProviderExcelRemoteApplyService:
         )
 
         return updated
+
+    def export_local_copy(
+        self,
+        shared_url: str,
+        relation_results: pd.DataFrame,
+        output_dir: str,
+    ) -> dict:
+        folder = Path(
+            output_dir
+        )
+
+        folder.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        timestamp = datetime.now().strftime(
+            "%Y%m%d_%H%M%S_%f"
+        )
+
+        # Obtener identidad y version del archivo
+        # antes de descargarlo.
+        metadata_before = (
+            self.resolve_drive_item(
+                shared_url
+            )
+        )
+
+        original = (
+            self.status_service
+            .download(
+                shared_url
+            )
+        )
+
+        preview = (
+            self.status_service
+            .build_preview(
+                content=original,
+                relation_results=
+                    relation_results,
+            )
+        )
+
+        if not preview["ready"]:
+            raise RuntimeError(
+                "Fase 2 no esta lista para generar "
+                "la copia local. Ejecuta PREVIEW "
+                "y corrige los bloqueos."
+            )
+
+        changes = int(
+            preview["summary"][
+                "actualizaciones"
+            ]
+        )
+
+        if changes <= 0:
+            raise RuntimeError(
+                "No existen cambios pendientes "
+                "para generar una copia local."
+            )
+
+        updated = self.build_updated_content(
+            content=original,
+            plan=preview["plan"],
+        )
+
+        # La copia local debe quedar exactamente
+        # con todos los estados esperados.
+        local_verify = (
+            self.status_service
+            .build_preview(
+                content=updated,
+                relation_results=
+                    relation_results,
+            )
+        )
+
+        self._assert_fully_applied(
+            verification=local_verify,
+            expected_rows=len(
+                relation_results
+            ),
+        )
+
+        # Volvemos a consultar metadata antes de
+        # entregar la copia al usuario.
+        metadata_after = (
+            self.resolve_drive_item(
+                shared_url
+            )
+        )
+
+        if (
+            metadata_before["item_id"]
+            != metadata_after["item_id"]
+            or metadata_before["drive_id"]
+            != metadata_after["drive_id"]
+        ):
+            raise RuntimeError(
+                "El archivo remoto cambio de identidad "
+                "mientras se generaba la copia local. "
+                "Vuelve a ejecutar el Preview."
+            )
+
+        before_etag = str(
+            metadata_before.get(
+                "etag"
+            )
+            or ""
+        )
+
+        after_etag = str(
+            metadata_after.get(
+                "etag"
+            )
+            or ""
+        )
+
+        if (
+            before_etag
+            and after_etag
+            and before_etag != after_etag
+        ):
+            raise RuntimeError(
+                "El Excel remoto fue modificado mientras "
+                "se generaba la copia local. "
+                "No se genero una copia potencialmente "
+                "desactualizada. Vuelve a ejecutar "
+                "el Preview."
+            )
+
+        backup_path = (
+            folder
+            / (
+                "excel_sharepoint_DESCARGADO_ANTES_FASE2_"
+                f"{timestamp}.xlsx"
+            )
+        )
+
+        candidate_path = (
+            folder
+            / (
+                "excel_sharepoint_ACTUALIZADO_LOCAL_FASE2_"
+                f"{timestamp}.xlsx"
+            )
+        )
+
+        backup_path.write_bytes(
+            original
+        )
+
+        candidate_path.write_bytes(
+            updated
+        )
+
+        plan = local_verify[
+            "plan"
+        ].copy()
+
+        status_numeric = pd.to_numeric(
+            plan["CREADO ACTUAL"],
+            errors="coerce",
+        )
+
+        created_1 = int(
+            status_numeric.eq(1).sum()
+        )
+
+        created_2 = int(
+            status_numeric.eq(2).sum()
+        )
+
+        report_path = (
+            folder
+            / (
+                "fase2_PER_COPIA_LOCAL_"
+                f"{timestamp}.xlsx"
+            )
+        )
+
+        summary = {
+            "archivo_remoto":
+                metadata_before.get(
+                    "name",
+                    "",
+                ),
+            "item_id":
+                metadata_before.get(
+                    "item_id",
+                    "",
+                ),
+            "drive_id":
+                metadata_before.get(
+                    "drive_id",
+                    "",
+                ),
+            "etag_fuente":
+                before_etag,
+            "filas_verificadas":
+                len(plan),
+            "cambios_aplicados_localmente":
+                changes,
+            "creado_1":
+                created_1,
+            "creado_2":
+                created_2,
+            "sha256_descargado":
+                sha256(
+                    original
+                ).hexdigest(),
+            "sha256_copia_actualizada":
+                sha256(
+                    updated
+                ).hexdigest(),
+            "archivo_descargado":
+                str(
+                    backup_path.resolve()
+                ),
+            "archivo_actualizado":
+                str(
+                    candidate_path.resolve()
+                ),
+            "escritura_sharepoint":
+                "NO",
+        }
+
+        with pd.ExcelWriter(
+            report_path,
+            engine="openpyxl",
+        ) as writer:
+            pd.DataFrame([
+                {
+                    "METRICA": key,
+                    "VALOR": value,
+                }
+                for key, value
+                in summary.items()
+            ]).to_excel(
+                writer,
+                sheet_name="RESUMEN",
+                index=False,
+            )
+
+            plan.to_excel(
+                writer,
+                sheet_name="VERIFICACION",
+                index=False,
+            )
+
+        return {
+            "ok": True,
+            "remote_write": False,
+            "changes_applied": changes,
+            "created_1": created_1,
+            "created_2": created_2,
+            "verified_rows": len(
+                plan
+            ),
+            "source_etag": before_etag,
+            "backup_path": str(
+                backup_path.resolve()
+            ),
+            "candidate_path": str(
+                candidate_path.resolve()
+            ),
+            "report_path": str(
+                report_path.resolve()
+            ),
+            "sha256_source": sha256(
+                original
+            ).hexdigest(),
+            "sha256_candidate": sha256(
+                updated
+            ).hexdigest(),
+        }
 
     def apply(
         self,

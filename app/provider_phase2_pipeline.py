@@ -145,6 +145,178 @@ def run_provider_phase2_preview(
     }
 
 
+
+def evaluate_provider_phase2_replacement(
+    result: dict,
+) -> dict:
+    """
+    Verifica que el Excel remoto ya tenga todos
+    los estados creado=1/2 calculados por Fase 2.
+
+    Esta funcion no escribe en SharePoint.
+    """
+
+    total = int(
+        result.get(
+            "relaciones_total",
+            0,
+        )
+        or 0
+    )
+
+    pending = int(
+        result.get(
+            "actualizaciones_remotas_preview",
+            0,
+        )
+        or 0
+    )
+
+    unchanged = int(
+        result.get(
+            "sin_cambio_remoto",
+            0,
+        )
+        or 0
+    )
+
+    missing = int(
+        result.get(
+            "relaciones_sin_resultado",
+            0,
+        )
+        or 0
+    )
+
+    conflicts = int(
+        result.get(
+            "conflictos_remotos",
+            0,
+        )
+        or 0
+    )
+
+    verification_errors = int(
+        result.get(
+            "errores_verificacion_remota",
+            0,
+        )
+        or 0
+    )
+
+    invalid_states = int(
+        result.get(
+            "estados_remotos_invalidos",
+            0,
+        )
+        or 0
+    )
+
+    reasons = []
+
+    if total <= 0:
+        reasons.append(
+            "No existen relaciones para verificar."
+        )
+
+    if missing:
+        reasons.append(
+            f"{missing} relacion(es) no tienen "
+            "resultado del Portal."
+        )
+
+    if pending:
+        reasons.append(
+            f"{pending} cambio(s) de creado "
+            "todavia no estan reflejados "
+            "en el Excel remoto."
+        )
+
+    if conflicts:
+        reasons.append(
+            f"{conflicts} conflicto(s) de estado "
+            "fueron detectados."
+        )
+
+    if verification_errors:
+        reasons.append(
+            f"{verification_errors} error(es) "
+            "de verificacion fueron detectados."
+        )
+
+    if invalid_states:
+        reasons.append(
+            f"{invalid_states} estado(s) creado "
+            "son invalidos."
+        )
+
+    if (
+        total > 0
+        and unchanged != total
+    ):
+        reasons.append(
+            "No todas las relaciones remotas "
+            "coinciden con el resultado de Fase 2 "
+            f"({unchanged}/{total})."
+        )
+
+    verified = (
+        total > 0
+        and missing == 0
+        and pending == 0
+        and conflicts == 0
+        and verification_errors == 0
+        and invalid_states == 0
+        and unchanged == total
+    )
+
+    return {
+        "replacement_verified":
+            verified,
+        "verification_reasons":
+            reasons,
+        "verified_relations":
+            unchanged,
+        "expected_relations":
+            total,
+        "pending_changes":
+            pending,
+    }
+
+
+def run_provider_phase2_verify_replacement(
+    run_folder: str,
+    portal_result_excel: str,
+    shared_url: str,
+) -> dict:
+    """
+    Relee SharePoint y comprueba que el reemplazo
+    manual ya contiene los estados esperados.
+
+    No modifica el archivo remoto.
+    """
+
+    result = run_provider_phase2_preview(
+        run_folder=
+            run_folder,
+        portal_result_excel=
+            portal_result_excel,
+        shared_url=
+            shared_url,
+    )
+
+    verification = (
+        evaluate_provider_phase2_replacement(
+            result
+        )
+    )
+
+    return {
+        **result,
+        **verification,
+    }
+
+
 def _print_result(
     result: dict,
 ) -> None:

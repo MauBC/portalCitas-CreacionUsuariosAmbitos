@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -6,6 +6,7 @@ from PySide6.QtCore import (
     QSettings,
     QThread,
     QUrl,
+    Signal,
 )
 from PySide6.QtGui import (
     QDesktopServices,
@@ -18,12 +19,17 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
+)
+
+from app.ui.dialogs.app_dialog import (
+    AppDialog,
 )
 
 from app.ui.workers.phase1_worker import (
@@ -32,6 +38,9 @@ from app.ui.workers.phase1_worker import (
 
 
 class UsersPage(QWidget):
+    phase1_completed = Signal(str, dict)
+    navigate_requested = Signal(int)
+
     def __init__(self):
         super().__init__()
 
@@ -49,7 +58,42 @@ class UsersPage(QWidget):
         self.set_country("PER")
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+        root_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(
+            QFrame.Shape.NoFrame
+        )
+
+        content = QWidget()
+        content.setObjectName(
+            "pageContent"
+        )
+
+        # Evita que Qt comprima controles
+        # cuando la ventana pierde espacio.
+        content.setMinimumWidth(
+            720
+        )
+
+        scroll.setWidget(content)
+
+        root_layout.addWidget(
+            scroll
+        )
+
+        self.page_scroll = scroll
+        self.page_content = content
+
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(
             38,
             34,
@@ -67,22 +111,38 @@ class UsersPage(QWidget):
         self.description.setObjectName(
             "pageDescription"
         )
+        self.description.setWordWrap(
+            True
+        )
 
         layout.addWidget(title)
         layout.addWidget(self.description)
         layout.addSpacing(20)
 
         self.source_card = self._build_source_card()
-        layout.addWidget(self.source_card)
+        self.source_card.setMinimumHeight(
+            300
+        )
+        layout.addWidget(
+            self.source_card
+        )
 
         layout.addSpacing(10)
 
         self.run_card = self._build_run_card()
-        layout.addWidget(self.run_card)
+        self.run_card.setMinimumHeight(
+            150
+        )
+        layout.addWidget(
+            self.run_card
+        )
 
         layout.addSpacing(10)
 
         self.result_card = self._build_result_card()
+        self.result_card.setMinimumHeight(
+            225
+        )
         self.result_card.hide()
 
         layout.addWidget(self.result_card)
@@ -107,6 +167,13 @@ class UsersPage(QWidget):
         layout.addWidget(title)
 
         self.source_stack = QStackedWidget()
+        self.source_stack.setMinimumHeight(
+            215
+        )
+        self.source_stack.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
 
         # ------------------------------------------
         # SLV
@@ -179,6 +246,13 @@ class UsersPage(QWidget):
         self.per_input_stack = (
             QStackedWidget()
         )
+        self.per_input_stack.setMinimumHeight(
+            75
+        )
+        self.per_input_stack.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
 
         # URL SharePoint
 
@@ -199,7 +273,7 @@ class UsersPage(QWidget):
 
         self.per_url = QLineEdit()
         self.per_url.setPlaceholderText(
-            "Pega aqui el enlace del Excel..."
+            "Pega aqu? el enlace del Excel..."
         )
         self.per_url.setClearButtonEnabled(
             True
@@ -213,6 +287,10 @@ class UsersPage(QWidget):
 
         self.per_url.setText(
             saved_url
+        )
+
+        self.per_url.textChanged.connect(
+            self._clear_per_source_validation
         )
 
         sharepoint_layout.addWidget(
@@ -239,6 +317,10 @@ class UsersPage(QWidget):
         self.per_file.setReadOnly(True)
         self.per_file.setPlaceholderText(
             "Selecciona el Excel de proveedores..."
+        )
+
+        self.per_file.textChanged.connect(
+            self._clear_per_source_validation
         )
 
         browse_button = QPushButton(
@@ -284,6 +366,19 @@ class UsersPage(QWidget):
         )
         per_layout.addWidget(
             self.per_input_stack
+        )
+
+        self.per_source_error = QLabel()
+        self.per_source_error.setObjectName(
+            "fieldError"
+        )
+        self.per_source_error.setWordWrap(
+            True
+        )
+        self.per_source_error.hide()
+
+        per_layout.addWidget(
+            self.per_source_error
         )
         per_layout.addWidget(info)
 
@@ -397,7 +492,7 @@ class UsersPage(QWidget):
         )
 
         grid.addWidget(
-            QLabel("Validos"),
+            QLabel("V?lidos"),
             0,
             1,
         )
@@ -460,7 +555,7 @@ class UsersPage(QWidget):
         )
 
         self.open_valid_button = (
-            QPushButton("Abrir validos")
+            QPushButton("Abrir v?lidos")
         )
         self.open_valid_button.setObjectName(
             "secondaryButton"
@@ -498,6 +593,25 @@ class UsersPage(QWidget):
         buttons.addWidget(
             self.open_error_button
         )
+
+        self.continue_phase2_button = QPushButton(
+            "Continuar a Fase 2 \u2192"
+        )
+        self.continue_phase2_button.setObjectName(
+            "primaryButton"
+        )
+        self.continue_phase2_button.setEnabled(
+            False
+        )
+        self.continue_phase2_button.clicked.connect(
+            lambda:
+            self.navigate_requested.emit(2)
+        )
+
+        buttons.addWidget(
+            self.continue_phase2_button
+        )
+
         buttons.addStretch()
 
         layout.addLayout(buttons)
@@ -519,8 +633,22 @@ class UsersPage(QWidget):
             country or "PER"
         ).upper()
 
+        if hasattr(
+            self,
+            "per_source_error",
+        ):
+            self._clear_per_source_validation()
+
         self.result_card.hide()
         self.last_result = None
+
+        if hasattr(
+            self,
+            "continue_phase2_button",
+        ):
+            self.continue_phase2_button.setEnabled(
+                False
+            )
 
         if self.country == "SLV":
             self.source_stack.setCurrentIndex(
@@ -543,13 +671,13 @@ class UsersPage(QWidget):
             )
 
             self.description.setText(
-                "Valida los registros de Peru "
+                "Valida los registros de Per? "
                 "desde el Excel de proveedores y "
                 "genera la plantilla oficial de usuarios."
             )
 
             self.run_button.setText(
-                "Procesar usuarios · Peru"
+                "Procesar usuarios · Per\u00fa"
             )
 
         self.status_label.setText(
@@ -557,6 +685,8 @@ class UsersPage(QWidget):
         )
 
     def _update_per_source(self):
+        self._clear_per_source_validation()
+
         source = (
             self.per_source_combo
             .currentData()
@@ -567,6 +697,95 @@ class UsersPage(QWidget):
             if source == "sharepoint"
             else 1
         )
+
+    def _refresh_input_style(
+        self,
+        widget,
+    ):
+        widget.style().unpolish(
+            widget
+        )
+        widget.style().polish(
+            widget
+        )
+
+    def _set_per_source_error(
+        self,
+        widget,
+        message: str,
+    ):
+        for current in [
+            self.per_url,
+            self.per_file,
+        ]:
+            current.setProperty(
+                "invalid",
+                current is widget,
+            )
+            current.setProperty(
+                "valid",
+                False,
+            )
+
+            self._refresh_input_style(
+                current
+            )
+
+        self.per_source_error.setText(
+            message
+        )
+        self.per_source_error.show()
+
+    def _set_per_source_valid(
+        self,
+        widget,
+    ):
+        for current in [
+            self.per_url,
+            self.per_file,
+        ]:
+            current.setProperty(
+                "invalid",
+                False,
+            )
+            current.setProperty(
+                "valid",
+                current is widget,
+            )
+
+            self._refresh_input_style(
+                current
+            )
+
+        self.per_source_error.clear()
+        self.per_source_error.hide()
+
+    def _clear_per_source_validation(self):
+        if not hasattr(
+            self,
+            "per_source_error",
+        ):
+            return
+
+        for current in [
+            self.per_url,
+            self.per_file,
+        ]:
+            current.setProperty(
+                "invalid",
+                False,
+            )
+            current.setProperty(
+                "valid",
+                False,
+            )
+
+            self._refresh_input_style(
+                current
+            )
+
+        self.per_source_error.clear()
+        self.per_source_error.hide()
 
     def _browse_per_file(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -588,6 +807,8 @@ class UsersPage(QWidget):
         shared_url = None
 
         if self.country == "PER":
+            self._clear_per_source_validation()
+
             source_type = (
                 self.per_source_combo
                 .currentData()
@@ -599,16 +820,48 @@ class UsersPage(QWidget):
                 )
 
                 if not shared_url:
-                    QMessageBox.warning(
-                        self,
-                        "Falta enlace",
+                    self._set_per_source_error(
+                        self.per_url,
                         (
                             "Ingresa el enlace de "
                             "SharePoint del Excel "
                             "de proveedores."
                         ),
                     )
+
+                    self.status_label.setText(
+                        "Revisa el campo marcado "
+                        "antes de continuar."
+                    )
+
                     return
+
+                if not (
+                    shared_url.startswith(
+                        "https://"
+                    )
+                    or shared_url.startswith(
+                        "http://"
+                    )
+                ):
+                    self._set_per_source_error(
+                        self.per_url,
+                        (
+                            "El enlace debe comenzar "
+                            "con https://"
+                        ),
+                    )
+
+                    self.status_label.setText(
+                        "El enlace de SharePoint "
+                        "no es valido."
+                    )
+
+                    return
+
+                self._set_per_source_valid(
+                    self.per_url
+                )
 
                 self.settings.setValue(
                     "phase1/per_shared_url",
@@ -621,17 +874,71 @@ class UsersPage(QWidget):
                 )
 
                 if not file_path:
-                    QMessageBox.warning(
-                        self,
-                        "Falta archivo",
+                    self._set_per_source_error(
+                        self.per_file,
                         (
                             "Selecciona el Excel "
                             "de proveedores."
                         ),
                     )
+
+                    self.status_label.setText(
+                        "Revisa el campo marcado "
+                        "antes de continuar."
+                    )
+
                     return
 
+                local_file = Path(
+                    file_path
+                )
+
+                if not local_file.is_file():
+                    self._set_per_source_error(
+                        self.per_file,
+                        (
+                            "El archivo seleccionado "
+                            "no existe."
+                        ),
+                    )
+
+                    self.status_label.setText(
+                        "El archivo local "
+                        "no es valido."
+                    )
+
+                    return
+
+                if (
+                    local_file.suffix.lower()
+                    not in {
+                        ".xlsx",
+                        ".xlsm",
+                    }
+                ):
+                    self._set_per_source_error(
+                        self.per_file,
+                        (
+                            "Selecciona un archivo "
+                            "Excel .xlsx o .xlsm."
+                        ),
+                    )
+
+                    self.status_label.setText(
+                        "El archivo seleccionado "
+                        "no es un Excel valido."
+                    )
+
+                    return
+
+                self._set_per_source_valid(
+                    self.per_file
+                )
+
         self.result_card.hide()
+        self.continue_phase2_button.setEnabled(
+            False
+        )
         self.run_button.setEnabled(False)
         self.progress.show()
 
@@ -699,7 +1006,7 @@ class UsersPage(QWidget):
                 message
             )
 
-            QMessageBox.warning(
+            AppDialog.warning(
                 self,
                 "Proceso no completado",
                 message,
@@ -707,6 +1014,11 @@ class UsersPage(QWidget):
             return
 
         self.last_result = result
+
+        self.phase1_completed.emit(
+            self.country,
+            dict(result),
+        )
 
         if self.country == "SLV":
             total = int(
@@ -792,14 +1104,38 @@ class UsersPage(QWidget):
 
         self._update_file_buttons()
 
-        QMessageBox.information(
+        run_folder_value = str(
+            result.get(
+                "run_folder",
+                "",
+            )
+            or ""
+        ).strip()
+
+        phase2_available = False
+
+        if run_folder_value:
+            manifest = (
+                Path(run_folder_value)
+                / "usuarios_enviados.xlsx"
+            )
+
+            phase2_available = (
+                manifest.is_file()
+            )
+
+        self.continue_phase2_button.setEnabled(
+            phase2_available
+        )
+
+        AppDialog.success(
             self,
             "Fase 1 completada",
             (
-                "El procesamiento termino "
+                "El procesamiento termin? "
                 "correctamente.\n\n"
                 f"Registros: {total}\n"
-                f"Validos: {valid}\n"
+                f"V?lidos: {valid}\n"
                 f"Errores: {errors}\n"
                 f"Usuarios: {users}"
             ),
@@ -814,17 +1150,18 @@ class UsersPage(QWidget):
         self.run_button.setEnabled(True)
 
         self.status_label.setText(
-            "Ocurrio un error durante el proceso."
+            "Ocurri? un error durante el proceso."
         )
 
-        QMessageBox.critical(
+        AppDialog.error(
             self,
             "Error en Fase 1",
             (
                 f"{error_detail}\n\n"
-                "El detalle completo tambien "
-                "se imprimio en la consola."
+                "Puedes consultar el detalle "
+                "t?cnico si lo necesitas."
             ),
+            details=full_trace,
         )
 
         print()
@@ -910,7 +1247,7 @@ class UsersPage(QWidget):
         target = Path(path)
 
         if not target.exists():
-            QMessageBox.warning(
+            AppDialog.warning(
                 self,
                 "Archivo no encontrado",
                 str(target),

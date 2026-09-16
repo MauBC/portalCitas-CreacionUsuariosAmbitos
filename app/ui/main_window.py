@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
@@ -54,6 +54,19 @@ class MainWindow(QMainWindow):
         self.phase2_page = Phase2Page()
         self.ambitos_page = AmbitosPage()
 
+        self.workflow_states = {
+            "PER": {
+                "users": "pending",
+                "phase2": "pending",
+                "ambitos": "pending",
+            },
+            "SLV": {
+                "users": "pending",
+                "phase2": "pending",
+                "ambitos": "pending",
+            },
+        }
+
         self.pages.addWidget(
             self.home_page
         )
@@ -91,6 +104,34 @@ class MainWindow(QMainWindow):
 
         self.country_combo.currentIndexChanged.connect(
             self._country_changed
+        )
+
+        self.users_page.phase1_completed.connect(
+            self.phase2_page.set_phase1_result
+        )
+
+        self.users_page.phase1_completed.connect(
+            self.ambitos_page.set_phase1_result
+        )
+
+        self.users_page.navigate_requested.connect(
+            self._show_page
+        )
+
+        self.phase2_page.navigate_requested.connect(
+            self._show_page
+        )
+
+        self.users_page.phase1_completed.connect(
+            self._on_phase1_workflow_completed
+        )
+
+        self.phase2_page.workflow_status_changed.connect(
+            self._on_phase2_workflow_status
+        )
+
+        self.ambitos_page.workflow_status_changed.connect(
+            self._on_ambitos_workflow_status
         )
 
         self._show_page(0)
@@ -209,6 +250,224 @@ class MainWindow(QMainWindow):
         self.users_page.set_country(
             country
         )
+
+        self.phase2_page.set_country(
+            country
+        )
+
+        self.ambitos_page.set_country(
+            country
+        )
+
+        self._refresh_workflow_navigation()
+
+    def _current_country(self):
+        return str(
+            self.country_combo.currentData()
+            or "PER"
+        ).strip().upper()
+
+    def _on_phase1_workflow_completed(
+        self,
+        country: str,
+        result: dict,
+    ):
+        country = str(
+            country or ""
+        ).strip().upper()
+
+        if country not in self.workflow_states:
+            return
+
+        self.workflow_states[
+            country
+        ]["users"] = "done"
+
+        run_folder = str(
+            result.get(
+                "run_folder",
+                "",
+            )
+            or ""
+        ).strip()
+
+        has_manifest = False
+
+        if run_folder:
+            has_manifest = (
+                Path(run_folder)
+                / "usuarios_enviados.xlsx"
+            ).is_file()
+
+        self.workflow_states[
+            country
+        ]["phase2"] = (
+            "pending"
+            if has_manifest
+            else "pending"
+        )
+
+        self.workflow_states[
+            country
+        ]["ambitos"] = "pending"
+
+        self._refresh_workflow_navigation()
+
+    def _on_phase2_workflow_status(
+        self,
+        country: str,
+        status: str,
+    ):
+        country = str(
+            country or ""
+        ).strip().upper()
+
+        status = str(
+            status or "pending"
+        ).strip().lower()
+
+        if country not in self.workflow_states:
+            return
+
+        if status not in {
+            "pending",
+            "action",
+            "done",
+        }:
+            status = "pending"
+
+        self.workflow_states[
+            country
+        ]["phase2"] = status
+
+        if status == "done":
+            self.workflow_states[
+                country
+            ]["ambitos"] = "pending"
+
+        self._refresh_workflow_navigation()
+
+    def _on_ambitos_workflow_status(
+        self,
+        country: str,
+        status: str,
+    ):
+        country = str(
+            country or ""
+        ).strip().upper()
+
+        status = str(
+            status or "pending"
+        ).strip().lower()
+
+        if country not in self.workflow_states:
+            return
+
+        if status not in {
+            "pending",
+            "action",
+            "done",
+        }:
+            status = "pending"
+
+        self.workflow_states[
+            country
+        ]["ambitos"] = status
+
+        self._refresh_workflow_navigation()
+
+    def _refresh_workflow_navigation(self):
+        if not hasattr(
+            self,
+            "nav_buttons",
+        ):
+            return
+
+        country = self._current_country()
+
+        states = self.workflow_states.get(
+            country,
+            {},
+        )
+
+        definitions = {
+            1: (
+                "Usuarios",
+                "users",
+            ),
+            2: (
+                "Fase 2",
+                "phase2",
+            ),
+            3: (
+                "\u00c1mbitos",
+                "ambitos",
+            ),
+        }
+
+        symbols = {
+            "pending": "\u25cb",
+            "action": "!",
+            "done": "\u2713",
+        }
+
+        tooltips = {
+            "pending":
+                "Pendiente.",
+            "action":
+                "Requiere una accion antes "
+                "de continuar.",
+            "done":
+                "Fase completada.",
+        }
+
+        for index, (
+            label,
+            key,
+        ) in definitions.items():
+
+            if index >= len(
+                self.nav_buttons
+            ):
+                continue
+
+            button = self.nav_buttons[
+                index
+            ]
+
+            status = states.get(
+                key,
+                "pending",
+            )
+
+            symbol = symbols.get(
+                status,
+                "\u25cb",
+            )
+
+            button.setText(
+                f"{symbol}  {label}"
+            )
+
+            button.setProperty(
+                "workflowStatus",
+                status,
+            )
+
+            button.setToolTip(
+                tooltips.get(
+                    status,
+                    "",
+                )
+            )
+
+            button.style().unpolish(
+                button
+            )
+
+            button.style().polish(
+                button
+            )
 
     def _show_page(
         self,

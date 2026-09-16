@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 import sys
 import tempfile
+from unittest.mock import patch
 from zipfile import ZipFile
 
 import base64
@@ -25,6 +26,7 @@ from app.services.provider_excel_remote_status_service import (
 )
 from app.services.provider_excel_remote_apply_service import (
     ProviderExcelRemoteApplyService,
+    ProviderExcelRemoteLockedError,
 )
 
 
@@ -194,6 +196,45 @@ class FakeApplyService(
             "id": "ITEM-1",
             "eTag": "ETAG-2",
         }
+
+
+class FakePutResponse:
+    def __init__(
+        self,
+        status_code: int,
+        text: str = "",
+        headers: dict | None = None,
+        payload: dict | None = None,
+    ):
+        self.status_code = status_code
+        self.text = text
+        self.headers = (
+            headers
+            or {}
+        )
+        self.ok = (
+            200
+            <= status_code
+            < 300
+        )
+        self._payload = (
+            payload
+            or {}
+        )
+
+    def json(self):
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(
+        self,
+        exc_type,
+        exc_value,
+        traceback,
+    ):
+        return False
 
 
 print("=" * 100)
@@ -397,6 +438,192 @@ with tempfile.TemporaryDirectory() as temp_dir:
         fail(
             "Faltan archivos de auditoria del apply"
         )
+
+# ------------------------------------------------------------------
+# HTTP 423 - lock transitorio
+# ------------------------------------------------------------------
+
+retry_service = (
+    ProviderExcelRemoteApplyService()
+)
+
+locked_body = (
+    '{"error":{"code":"notAllowed",'
+    '"message":"locked",'
+    '"innerError":{"code":"resourceLocked"}}}'
+)
+
+responses = [
+    FakePutResponse(
+        423,
+        text=locked_body,
+    ),
+    FakePutResponse(
+        423,
+        text=locked_body,
+    ),
+    FakePutResponse(
+        200,
+        payload={
+            "id": "ITEM-1",
+            "eTag": "ETAG-2",
+        },
+    ),
+]
+
+with patch(
+    "app.services."
+    "provider_excel_remote_apply_service."
+    "requests.put",
+    side_effect=responses,
+) as put_mock:
+    with patch(
+        "app.services."
+        "provider_excel_remote_apply_service."
+        "time.sleep"
+    ):
+        retry_result = (
+            retry_service.upload_content(
+                metadata={
+                    "drive_id": "DRIVE-1",
+                    "item_id": "ITEM-1",
+                },
+                content=b"xlsx-content",
+            )
+        )
+
+if (
+    retry_result.get("id")
+    == "ITEM-1"
+    and put_mock.call_count == 3
+):
+    ok(
+        "HTTP 423 transitorio reintenta "
+        "y luego completa upload"
+    )
+else:
+    fail(
+        "HTTP 423 transitorio no reintento "
+        "correctamente"
+    )
+
+
+# ------------------------------------------------------------------
+# HTTP 423 - lock persistente
+# ------------------------------------------------------------------
+
+persistent_responses = [
+    FakePutResponse(
+        423,
+        text=locked_body,
+    )
+    for _ in range(
+        retry_service.UPLOAD_MAX_RETRIES
+    )
+]
+
+persistent_lock_ok = False
+
+with patch(
+    "app.services."
+    "provider_excel_remote_apply_service."
+    "requests.put",
+    side_effect=persistent_responses,
+) as put_mock:
+    with patch(
+        "app.services."
+        "provider_excel_remote_apply_service."
+        "time.sleep"
+    ):
+        try:
+            retry_service.upload_content(
+                metadata={
+                    "drive_id": "DRIVE-1",
+                    "item_id": "ITEM-1",
+                },
+                content=b"xlsx-content",
+            )
+
+        except ProviderExcelRemoteLockedError as exc:
+            persistent_lock_ok = (
+                "bloqueado"
+                in str(exc).lower()
+                and put_mock.call_count
+                == retry_service.UPLOAD_MAX_RETRIES
+            )
+
+if persistent_lock_ok:
+    ok(
+        "HTTP 423 persistente aborta "
+        "con error especifico y seguro"
+    )
+else:
+    fail(
+        "HTTP 423 persistente no fue "
+        "manejado correctamente"
+    )
+
+
+# ------------------------------------------------------------------
+# COPIA LOCAL - NO ESCRIBE SHAREPOINT
+# ------------------------------------------------------------------
+
+with tempfile.TemporaryDirectory() as temp_dir:
+    local_status = FakeStatusService(
+        original
+    )
+
+    local_service = FakeApplyService(
+        local_status
+    )
+
+    local_result = (
+        local_service.export_local_copy(
+            shared_url=
+                "https://example.invalid/share",
+            relation_results=relations,
+            output_dir=temp_dir,
+        )
+    )
+
+    local_files_ok = all(
+        Path(
+            local_result[key]
+        ).is_file()
+        for key in [
+            "backup_path",
+            "candidate_path",
+            "report_path",
+        ]
+    )
+
+    if (
+        local_result["ok"]
+        and not local_result[
+            "remote_write"
+        ]
+        and local_result[
+            "changes_applied"
+        ] == 2
+        and local_result[
+            "created_1"
+        ] == 1
+        and local_result[
+            "created_2"
+        ] == 1
+        and local_service.upload_calls == 0
+        and local_files_ok
+    ):
+        ok(
+            "Copia local no realiza upload remoto "
+            "y genera Excel verificado"
+        )
+    else:
+        fail(
+            "La copia local no cumplio el contrato "
+            "de seguridad esperado"
+        )
+
 
 print()
 print("=" * 100)
