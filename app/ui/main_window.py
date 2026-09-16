@@ -2,8 +2,8 @@ from pathlib import Path
 
 from app.config.paths import PROJECT_ROOT
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, QSignalBlocker
+from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -28,6 +28,7 @@ from app.ui.pages.phase2_page import (
 from app.ui.pages.users_page import (
     UsersPage,
 )
+from app.ui.dialogs.app_dialog import AppDialog
 
 
 class MainWindow(QMainWindow):
@@ -101,6 +102,9 @@ class MainWindow(QMainWindow):
         )
 
         self.setCentralWidget(root)
+
+        for page in self._operation_pages():
+            page.busy_changed.connect(self._refresh_operation_state)
 
         self.country_combo.currentIndexChanged.connect(
             self._country_changed
@@ -242,6 +246,13 @@ class MainWindow(QMainWindow):
         return sidebar
 
     def _country_changed(self):
+        if self._operation_in_progress():
+            with QSignalBlocker(self.country_combo):
+                self.country_combo.setCurrentIndex(
+                    self.country_combo.findData(self.users_page.country)
+                )
+            return
+
         country = (
             self.country_combo
             .currentData()
@@ -473,6 +484,9 @@ class MainWindow(QMainWindow):
         self,
         index: int,
     ):
+        if self._operation_in_progress():
+            return
+
         self.pages.setCurrentIndex(
             index
         )
@@ -491,3 +505,33 @@ class MainWindow(QMainWindow):
             button.style().polish(
                 button
             )
+
+    def _operation_pages(self):
+        return (self.users_page, self.phase2_page, self.ambitos_page)
+
+    def _operation_in_progress(self) -> bool:
+        # Keep the guard until queued results and thread cleanup have completed.
+        return any(page.thread is not None for page in self._operation_pages())
+
+    def _refresh_operation_state(self, _busy: bool):
+        busy = self._operation_in_progress()
+        self.country_combo.setEnabled(not busy)
+        for button in self.nav_buttons:
+            button.setEnabled(not busy)
+        if busy:
+            self.statusBar().showMessage(
+                "Procesamiento en curso. Espera a que termine para cambiar de fase o país."
+            )
+        else:
+            self.statusBar().clearMessage()
+
+    def closeEvent(self, event: QCloseEvent):
+        if self._operation_in_progress():
+            event.ignore()
+            AppDialog.warning(
+                self,
+                "Procesamiento en curso",
+                "Espera a que termine la operación antes de cerrar la aplicación.",
+            )
+            return
+        super().closeEvent(event)

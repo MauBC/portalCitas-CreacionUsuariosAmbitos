@@ -39,6 +39,8 @@ from app.ui.workers.phase3_worker import (
 class AmbitosPage(QWidget):
     workflow_status_changed = Signal(str, str)
 
+    busy_changed = Signal(bool)
+
     def __init__(self):
         super().__init__()
 
@@ -1158,10 +1160,13 @@ class AmbitosPage(QWidget):
             self.thread.quit
         )
 
+        self.thread.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(
             self._cleanup_thread
         )
 
+        self.setEnabled(False)
+        self.busy_changed.emit(True)
         self.thread.start()
 
     # =====================================================
@@ -1522,14 +1527,15 @@ class AmbitosPage(QWidget):
         )
 
     def _cleanup_thread(self):
-        if self.worker is not None:
-            self.worker.deleteLater()
-
         if self.thread is not None:
+            # finished may precede native teardown; join before deleting QThread.
+            self.thread.wait()
             self.thread.deleteLater()
 
         self.worker = None
         self.thread = None
+        self.setEnabled(True)
+        self.busy_changed.emit(False)
 
     # =====================================================
     # OPEN FILES
