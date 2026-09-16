@@ -97,6 +97,16 @@ consecutiva. Las pruebas individuales tambien pueden ejecutarse directamente.
 
 ## Configuracion, rutas y diagnosticos
 
+`GraphClient` reintenta HTTP 429, 500, 502, 503 y 504, respetando
+`Retry-After` numerico o usando una espera exponencial cuando no esta presente.
+Los errores HTTP permanentes, certificados invalidos y JSON invalido no se
+repiten. Los errores de transporte se reintentan solo para lecturas GET/HEAD:
+un PATCH sin respuesta puede haberse aplicado y requiere comprobar el estado
+antes de repetirlo. El error final conserva su causa para diagnostico.
+`max_retries` mantiene su significado existente de numero total de intentos.
+`test_26_graph_reintentos.py` valida la politica sin solicitudes reales.
+Referencia: [limites y reintentos de Graph](https://learn.microsoft.com/en-us/graph/throttling).
+
 `PostgresClient.fetch_all` cierra la conexion despues de cada consulta, tanto
 si termina correctamente como si falla la consulta o la transaccion. Conserva
 el commit/rollback del contexto de psycopg2 y propaga el error original.
@@ -152,6 +162,19 @@ los errores por archivo ausente o sin aplicacion asociada y las transiciones
 de los campos entre error, valido y neutro en las tres paginas.
 
 ## Vista y contratos de presentacion
+
+Al iniciar otro preview, Fase 2 y Ambitos invalidan el resultado previo antes
+de ejecutar el worker. Un fallo no rehabilita las acciones del intento anterior.
+Cambiar las entradas elimina las referencias visuales a copias, resultados
+finales y revisiones anteriores, pero conserva los archivos en disco.
+
+La firma del preview incluye tamano, fecha de modificacion e identidad de los
+archivos locales (resultado del Portal y manifiesto en Fase 2; reporte VALIDOS
+en Ambitos). Si cambian durante el preview, el resultado se descarta. Las
+acciones posteriores comparan nuevamente la firma. Esta comprobacion no es
+un hash del contenido ni verifica cambios remotos. La revision manual de
+clientes puede editarse despues del preview, como requiere el flujo de Ambitos.
+`test_25_preview_vigencia.py` cubre resultados obsoletos y refrescos fallidos.
 
 `Phase2Page` conserva el estado del flujo, los workers y las verificaciones
 necesarias para habilitar acciones. Su base visual `Phase2View` construye las

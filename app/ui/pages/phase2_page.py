@@ -13,6 +13,7 @@ from app.ui.views.phase2_view import Phase2View
 from app.services.error_report_service import build_error_details, redact_secrets
 
 from app.ui.file_actions import open_local_path
+from app.ui.input_revision import file_revision
 from app.ui.result_models import Phase2Presentation
 from app.ui.widgets.field_feedback import clear_field_error, set_field_error
 
@@ -45,6 +46,7 @@ class Phase2Page(Phase2View):
         self.last_local_copy = None
         self.remote_replacement_verified = False
         self.preview_signature = None
+        self.running_preview_signature = None
 
         self.settings = QSettings(
             "Ransa",
@@ -422,7 +424,8 @@ class Phase2Page(Phase2View):
         return (
             self.country,
             self.run_folder.text().strip(),
-            self.portal_result.text().strip(),
+            file_revision(self.portal_result.text().strip()),
+            file_revision(Path(self.run_folder.text().strip()) / "usuarios_enviados.xlsx"),
             (
                 self.shared_url.text().strip()
                 if self.country == "PER"
@@ -431,6 +434,12 @@ class Phase2Page(Phase2View):
         )
 
     def _invalidate_preview(self):
+        self.last_apply = None
+        self.last_local_copy = None
+        for button in (self.open_result_button, self.open_evidence_button, self.open_plan_button):
+            button.setEnabled(False)
+        self.result_card.hide()
+        self.workflow_status_changed.emit(self.country, "pending")
         self.last_preview = None
         self.preview_signature = None
 
@@ -844,6 +853,10 @@ class Phase2Page(Phase2View):
         if self.thread is not None:
             return
 
+        if mode == "preview":
+            self._invalidate_preview()
+            self.running_preview_signature = self._current_signature()
+
         self.active_mode = mode
 
         self.preview_button.setEnabled(
@@ -945,6 +958,15 @@ class Phase2Page(Phase2View):
         self.preview_button.setEnabled(
             True
         )
+
+        if (
+            mode == "preview"
+            and self.running_preview_signature is not None
+            and self.running_preview_signature != self._current_signature()
+        ):
+            self._invalidate_preview()
+            self.status_label.setText("Los archivos cambiaron. Ejecuta nuevamente el preview.")
+            return
 
         if mode == "preview":
             self.last_preview = result
@@ -1507,6 +1529,7 @@ class Phase2Page(Phase2View):
 
         self.worker = None
         self.thread = None
+        self.running_preview_signature = None
         self.setEnabled(True)
         self.busy_changed.emit(False)
         self.active_mode = None
