@@ -97,6 +97,13 @@ consecutiva. Las pruebas individuales tambien pueden ejecutarse directamente.
 
 ## Configuracion, rutas y diagnosticos
 
+Las lecturas auxiliares de Fase 2 en `UserCreationPhase2Service` usan una sola
+apertura de `pd.ExcelFile` para seleccionar la hoja y leerla. El contexto cierra
+el libro al terminar, tambien si falta la hoja tecnica o falla el parseo.
+Se conserva la prioridad `DATOS_TECNICOS`, `ERRORES`, primera hoja para los
+errores locales. `test_29_excel_lectura.py` verifica datos y liberacion de
+archivos XLSX reales, incluido su renombrado posterior en Windows.
+
 `app/ui/error_guidance.py` agrega indicaciones a los errores de las tres fases:
 acceso por VPN/PostgreSQL, credenciales, permisos de SharePoint, certificados
 y archivos locales. Usa el mensaje y la causa conservada en la traza; devuelve
