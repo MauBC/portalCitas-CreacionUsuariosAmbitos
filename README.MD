@@ -1,8 +1,19 @@
 # Automatizacion de Usuarios y Ambitos
 
-Backend para preparar y validar cargas del Portal de Citas para Peru y El Salvador.
+Aplicacion de escritorio en Python para preparar y validar cargas del Portal de Citas para Peru y El Salvador. Incluye GUI PySide6 y un backend organizado por fase y pais.
 
-La GUI se implementara al final. Los flujos oficiales actuales estan separados por fase y pais.
+## Inicio
+
+Desde la raiz del proyecto, con las dependencias de `requirements.txt` instaladas y `.env` configurado:
+
+```powershell
+conda activate excel_gui
+python run_gui.py
+```
+
+La GUI integra Usuarios, Resultado del Portal y Ambitos, con seleccion de pais y navegacion guiada. `run.py` conserva la interfaz legacy en CustomTkinter.
+
+Consultar [arquitectura y mantenimiento](docs/arquitectura.md) para el mapa de componentes, contratos y convenciones de desarrollo.
 
 ## Arquitectura por pais
 
@@ -68,6 +79,8 @@ Estados de creacion:
 
 ### Peru
 
+El flujo recomendado desde la GUI es **Preview -> Generar copia local actualizada -> Reemplazo manual en SharePoint -> Verificar reemplazo**. La generacion de la copia y la verificacion no escriben en SharePoint. Fase 3 requiere los estados publicados en el archivo remoto.
+
 Preview:
 
 ```powershell
@@ -77,7 +90,7 @@ python -m app.provider_phase2_pipeline `
     --url "https://..."
 ```
 
-Aplicacion real:
+Aplicacion remota directa (opcion avanzada; un Excel abierto puede devolver HTTP 423):
 
 ```powershell
 python -m app.provider_phase2_apply_pipeline `
@@ -205,6 +218,25 @@ VALIDATE_EMAIL_EXISTS_IN_DB
 `.env`, copias locales de `.env` y `usuarios.xlsx` no deben subirse a Git.
 
 ## Pruebas
+
+El runner descubre todos los scripts `test_*.py` y permite separar pruebas locales de integracion. Por defecto ejecuta toda la suite y se detiene ante el primer fallo.
+
+```powershell
+.\tests\run_tests.ps1 -List
+.\tests\run_tests.ps1 -Suite Local
+.\tests\run_tests.ps1 -Suite Integration
+.\tests\run_tests.ps1 -Suite All
+```
+
+Las pruebas de integracion (`test_01` a `test_04`) requieren `.env`, acceso a Graph/SharePoint y PostgreSQL; generan archivos de ejecucion en `salidas/`. Las locales no requieren conexiones reales.
+
+Para elegir el interprete explicitamente:
+
+```powershell
+.\tests\run_tests.ps1 -Suite Local -Python "$env:USERPROFILE\miniconda3\envs\excel_gui\python.exe"
+```
+
+Tambien se pueden ejecutar individualmente:
 
 ```powershell
 python .\tests\test_00_limpieza_paises.py

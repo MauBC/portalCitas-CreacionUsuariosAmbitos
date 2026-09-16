@@ -1,34 +1,86 @@
-﻿$ErrorActionPreference = "Stop"
-
-$tests = @(
-    ".\test_01_sistema.py",
-    ".\test_02_usuarios.py",
-    ".\test_03_ambitos.py"
+[CmdletBinding()]
+param(
+    [ValidateSet('All', 'Local', 'Integration')]
+    [string]$Suite = 'All',
+    [string]$Python = 'python',
+    [switch]$List
 )
 
-Write-Host ""
-Write-Host "============================================================"
-Write-Host " TEST SUITE - AUTOMATIZACION USUARIOS / AMBITOS"
-Write-Host "============================================================"
+$ErrorActionPreference = 'Stop'
+# Native failures are handled below using LASTEXITCODE, including on PowerShell 7.
+$PSNativeCommandUseErrorActionPreference = $false
+$projectRoot = Split-Path -Parent $PSScriptRoot
 
-foreach ($test in $tests) {
+# Real-service tests run in order: Phase 1 prepares the scope tests' input.
+$integrationTests = @(
+    'test_01_sistema.py',
+    'test_02_usuarios.py',
+    'test_03_ambitos.py',
+    'test_04_ambitos_final.py'
+)
 
-    Write-Host ""
-    Write-Host "Ejecutando: $test"
-    Write-Host ""
+$tests = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter 'test_*.py' -File |
+    Sort-Object Name |
+    Where-Object {
+        $isIntegration = $_.Name -in $integrationTests
+        $Suite -eq 'All' -or
+        ($Suite -eq 'Integration' -and $isIntegration) -or
+        ($Suite -eq 'Local' -and -not $isIntegration)
+    })
 
-    python $test
-
-    if ($LASTEXITCODE -ne 0) {
-
-        Write-Host ""
-        Write-Host "[ERROR] Test fallido: $test"
-
-        exit $LASTEXITCODE
-    }
+if ($tests.Count -eq 0) {
+    throw "No se encontraron pruebas para la suite $Suite."
 }
 
-Write-Host ""
-Write-Host "============================================================"
-Write-Host " TODOS LOS TESTS PASARON CORRECTAMENTE"
-Write-Host "============================================================"
+if ($List) {
+    $tests | Select-Object Name, @{
+        Name = 'Suite'
+        Expression = {
+            if ($_.Name -in $integrationTests) { 'Integration' } else { 'Local' }
+        }
+    }
+    exit 0
+}
+
+# Resolve before changing directory so relative interpreter paths work.
+$pythonCommand = Get-Command -Name $Python -CommandType Application -ErrorAction Stop
+$pythonPath = $pythonCommand.Source
+$results = @()
+$suiteExitCode = 0
+
+Push-Location -LiteralPath $projectRoot
+try {
+    Write-Host "Suite: $Suite | Pruebas: $($tests.Count) | Python: $pythonPath"
+
+    foreach ($test in $tests) {
+        Write-Host "`nEjecutando: $($test.Name)"
+        $timer = [System.Diagnostics.Stopwatch]::StartNew()
+        & $pythonPath $test.FullName
+        $testExitCode = $LASTEXITCODE
+        $timer.Stop()
+
+        $results += [PSCustomObject]@{
+            Prueba = $test.Name
+            Resultado = if ($testExitCode -eq 0) { 'OK' } else { 'ERROR' }
+            Segundos = [Math]::Round($timer.Elapsed.TotalSeconds, 2)
+        }
+
+        if ($testExitCode -ne 0) {
+            $suiteExitCode = $testExitCode
+            Write-Host "Detenido: $($test.Name) fallo con codigo $testExitCode."
+            break
+        }
+    }
+}
+finally {
+    Pop-Location
+}
+
+$results | Format-Table -AutoSize | Out-Host
+Write-Host "Ejecutadas: $($results.Count)/$($tests.Count)"
+if ($suiteExitCode -eq 0) {
+    Write-Host 'RESULTADO: OK'
+} else {
+    Write-Host 'RESULTADO: ERROR'
+}
+exit $suiteExitCode
