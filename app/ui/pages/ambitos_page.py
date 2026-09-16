@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from app.services.error_report_service import build_error_details, redact_secrets
 
 from app.ui.file_actions import open_local_path
+from app.ui.input_revision import file_revision
 from app.ui.result_models import Metric, scope_metrics
 from app.ui.widgets.field_feedback import clear_field_error, set_field_error
 
@@ -53,6 +54,7 @@ class AmbitosPage(QWidget):
         self.last_final = None
 
         self.preview_signature = None
+        self.running_preview_signature = None
 
         self.settings = QSettings(
             "Ransa",
@@ -845,7 +847,7 @@ class AmbitosPage(QWidget):
     def _current_signature(self):
         return (
             self.country,
-            self.valid_report.text().strip(),
+            file_revision(self.valid_report.text().strip()),
             (
                 self.shared_url.text().strip()
                 if self.country == "PER"
@@ -854,6 +856,13 @@ class AmbitosPage(QWidget):
         )
 
     def _invalidate_preview(self):
+        self.last_final = None
+        self.review_path.clear()
+        self.review_info.hide()
+        for button in (self.open_preview_button, self.open_diagnostic_button, self.open_review_button, self.open_final_button):
+            button.setEnabled(False)
+        self.result_card.hide()
+        self.workflow_status_changed.emit(self.country, "pending")
         self.last_preview = None
         self.preview_signature = None
 
@@ -1094,6 +1103,10 @@ class AmbitosPage(QWidget):
         if self.thread is not None:
             return
 
+        if mode == "preview":
+            self._invalidate_preview()
+            self.running_preview_signature = self._current_signature()
+
         self.preview_button.setEnabled(
             False
         )
@@ -1183,6 +1196,15 @@ class AmbitosPage(QWidget):
         self.preview_button.setEnabled(
             True
         )
+
+        if (
+            mode == "preview"
+            and self.running_preview_signature is not None
+            and self.running_preview_signature != self._current_signature()
+        ):
+            self._invalidate_preview()
+            self.status_label.setText("Los archivos cambiaron. Ejecuta nuevamente el preview.")
+            return
 
         if mode == "preview":
             self.last_preview = result
@@ -1534,6 +1556,7 @@ class AmbitosPage(QWidget):
 
         self.worker = None
         self.thread = None
+        self.running_preview_signature = None
         self.setEnabled(True)
         self.busy_changed.emit(False)
 
