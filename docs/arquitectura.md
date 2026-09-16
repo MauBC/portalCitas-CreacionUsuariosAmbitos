@@ -19,6 +19,16 @@ Portal se reconcilia antes de generar ambitos.
 
 Los workers mantienen las operaciones de red y procesamiento fuera del hilo
 visual. Las reglas de negocio deben permanecer en servicios y pipelines.
+
+Mientras una fase procesa, la pagina bloquea sus controles y emite
+`busy_changed`. La ventana bloquea el cambio de pais y de fase, y rechaza el
+cierre con un aviso hasta que finalice el hilo. El progreso sigue visible.
+Los controles se recuperan despues del resultado o error y la limpieza del
+hilo. La senal `QThread.finished` programa la eliminacion del worker; el
+controlador espera la salida completa del hilo antes de eliminarlo.
+`test_23_gui_operaciones.py` verifica estos casos con hilos Qt reales y
+servicios simulados, sin usar la red.
+
 `run.py` es la interfaz legacy y se conserva para ejecucion desde codigo.
 `AutomatizacionUsuarios.spec` empaqueta `run_gui.py` y sus recursos oficiales.
 La configuracion privada permanece externa; ver [distribucion](distribucion.md).
