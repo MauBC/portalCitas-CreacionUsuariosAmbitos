@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from app.services.error_report_service import build_error_details, redact_secrets
 
 from app.ui.file_actions import open_local_path
+from app.ui.error_guidance import error_guidance
 from app.ui.result_models import Phase1Summary
 from app.ui.widgets.field_feedback import set_input_state
 
@@ -1069,14 +1070,15 @@ class UsersPage(QWidget):
             "Ocurri? un error durante el proceso."
         )
 
+        hint = error_guidance(error_detail, full_trace, mode="users")
+        user_message = error_detail
+        if hint:
+            user_message += f"\n\n{hint}"
+
         AppDialog.error(
             self,
             "Error en Fase 1",
-            (
-                f"{error_detail}\n\n"
-                "Puedes consultar el detalle "
-                "t?cnico si lo necesitas."
-            ),
+            user_message,
             details=details,
         )
 

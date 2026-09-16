@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from app.services.error_report_service import build_error_details, redact_secrets
 
 from app.ui.file_actions import open_local_path
+from app.ui.error_guidance import error_guidance
 from app.ui.input_revision import file_revision
 from app.ui.result_models import Metric, scope_metrics
 from app.ui.widgets.field_feedback import clear_field_error, set_field_error
@@ -1540,6 +1541,10 @@ class AmbitosPage(QWidget):
             user_message = str(
                 error_detail
             )
+
+        hint = error_guidance(error_detail, full_trace, mode=mode)
+        if hint:
+            user_message += f"\n\n{hint}"
 
         AppDialog.error(
             self,

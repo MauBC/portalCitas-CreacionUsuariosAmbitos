@@ -97,6 +97,17 @@ consecutiva. Las pruebas individuales tambien pueden ejecutarse directamente.
 
 ## Configuracion, rutas y diagnosticos
 
+`app/ui/error_guidance.py` agrega indicaciones a los errores de las tres fases:
+acceso por VPN/PostgreSQL, credenciales, permisos de SharePoint, certificados
+y archivos locales. Usa el mensaje y la causa conservada en la traza; devuelve
+una indicacion general sin copiar datos de la traza al texto de ayuda. Los
+errores no reconocidos mantienen su mensaje original. Un fallo de red durante
+Apply advierte que el resultado puede ser incierto y pide comprobar el estado
+publicado antes de repetir. La clasificacion orienta al usuario, no cambia los
+reintentos ni sustituye las verificaciones del backend.
+`test_27_diagnosticos_gui.py` comprueba la clasificacion y los dialogos de las
+tres fases, incluido el ocultamiento de credenciales.
+
 `GraphClient` reintenta HTTP 429, 500, 502, 503 y 504, respetando
 `Retry-After` numerico o usando una espera exponencial cuando no esta presente.
 Los errores HTTP permanentes, certificados invalidos y JSON invalido no se
