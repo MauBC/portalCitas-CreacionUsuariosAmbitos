@@ -97,6 +97,20 @@ consecutiva. Las pruebas individuales tambien pueden ejecutarse directamente.
 
 ## Configuracion, rutas y diagnosticos
 
+`PostgresClient.fetch_all` cierra la conexion despues de cada consulta, tanto
+si termina correctamente como si falla la consulta o la transaccion. Conserva
+el commit/rollback del contexto de psycopg2 y propaga el error original.
+Quien use directamente `get_connection()` debe cerrar la conexion recibida.
+
+`DB_CONNECT_TIMEOUT` limita el intento de conexion en segundos: por defecto
+15, con un minimo de 2. Es opcional en los archivos `.env` existentes. No
+limita la duracion de las consultas ni sustituye el acceso por VPN; libpq lo
+aplica por destino de conexion, no como limite global del flujo. Ver
+[conexion PostgreSQL](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-CONNECT-TIMEOUT)
+y [contextos psycopg2](https://www.psycopg.org/docs/usage.html#with-statement).
+`test_24_postgres_conexiones.py` verifica errores, liberacion de recursos y
+configuracion del timeout sin conectarse a servicios reales.
+
 `app/config/paths.py` centraliza las rutas de recursos y salidas. Los recursos
 se resuelven desde el codigo; el `.env` y las salidas se ubican en la raiz del
 proyecto durante desarrollo y junto al ejecutable cuando esta empaquetado.

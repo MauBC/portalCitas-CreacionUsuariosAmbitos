@@ -88,6 +88,8 @@ class Settings:
         "",
     ).strip()
 
+    DB_CONNECT_TIMEOUT = os.getenv("DB_CONNECT_TIMEOUT", "15").strip()
+
     FILTER_ONLY_PENDING_SHAREPOINT = (
         os.getenv(
             "FILTER_ONLY_PENDING_SHAREPOINT",
