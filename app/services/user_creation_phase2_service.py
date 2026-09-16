@@ -121,21 +121,15 @@ class UserCreationPhase2Service:
             valid_files[0]
         )
 
-        workbook = pd.ExcelFile(
-            valid_path
-        )
+        with pd.ExcelFile(valid_path) as workbook:
+            if "DATOS_TECNICOS" not in workbook.sheet_names:
+                return portal_result
 
-        if (
-            "DATOS_TECNICOS"
-            not in workbook.sheet_names
-        ):
-            return portal_result
-
-        source = pd.read_excel(
-            valid_path,
-            sheet_name="DATOS_TECNICOS",
-            dtype=str,
-        )
+            source = pd.read_excel(
+                workbook,
+                sheet_name="DATOS_TECNICOS",
+                dtype=str,
+            )
 
         if (
             "_item_id"
@@ -198,34 +192,19 @@ class UserCreationPhase2Service:
 
         path = error_files[0]
 
-        workbook = pd.ExcelFile(
-            path
-        )
+        with pd.ExcelFile(path) as workbook:
+            if "DATOS_TECNICOS" in workbook.sheet_names:
+                sheet_name = "DATOS_TECNICOS"
+            elif "ERRORES" in workbook.sheet_names:
+                sheet_name = "ERRORES"
+            else:
+                sheet_name = workbook.sheet_names[0]
 
-        if (
-            "DATOS_TECNICOS"
-            in workbook.sheet_names
-        ):
-            sheet_name = (
-                "DATOS_TECNICOS"
+            source = pd.read_excel(
+                workbook,
+                sheet_name=sheet_name,
+                dtype=str,
             )
-
-        elif (
-            "ERRORES"
-            in workbook.sheet_names
-        ):
-            sheet_name = "ERRORES"
-
-        else:
-            sheet_name = (
-                workbook.sheet_names[0]
-            )
-
-        source = pd.read_excel(
-            path,
-            sheet_name=sheet_name,
-            dtype=str,
-        )
 
         rows = []
 
