@@ -456,3 +456,29 @@ QLineEdit[valid="true"] {
 
 
 """
+
+
+APP_STYLE += """
+QLabel#workflowBadge {
+    border-radius: 6px;
+    padding: 5px 10px;
+    background: #EEF1EF;
+    color: #445149;
+    font-size: 12px;
+    font-weight: 600;
+}
+QLabel#workflowBadge[workflowStatus="done"] {
+    background: #EAF7EF;
+    color: #176236;
+}
+QLabel#workflowBadge[workflowStatus="action"] {
+    background: #FFF3E8;
+    color: #8B460C;
+}
+QPushButton:focus {
+    border: 2px solid #1F7A46;
+}
+QPushButton:disabled {
+    color: #7C8780;
+}
+"""

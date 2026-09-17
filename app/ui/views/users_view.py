@@ -234,7 +234,7 @@ class UsersView(QWidget):
 
         self.per_url = QLineEdit()
         self.per_url.setPlaceholderText(
-            "Pega aqu? el enlace del Excel..."
+            "Pega aquí el enlace del Excel..."
         )
         self.per_url.setClearButtonEnabled(
             True
@@ -428,7 +428,7 @@ class UsersView(QWidget):
         )
 
         grid.addWidget(
-            QLabel("V?lidos"),
+            QLabel("Válidos"),
             0,
             1,
         )
@@ -491,7 +491,7 @@ class UsersView(QWidget):
         )
 
         self.open_valid_button = (
-            QPushButton("Abrir v?lidos")
+            QPushButton("Abrir válidos")
         )
         self.open_valid_button.setObjectName(
             "secondaryButton"

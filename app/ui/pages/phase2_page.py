@@ -281,8 +281,8 @@ class Phase2Page(Phase2View):
 
             self.safety_info.setText(
                 (
-                    "Ejecuci?n de Fase 1 v?lida. "
-                    "Se encontr? usuarios_enviados.xlsx. "
+                    "Ejecución de Fase 1 válida. "
+                    "Se encontró usuarios_enviados.xlsx. "
                 )
                 + (
                     "El preview NO modifica SharePoint."
@@ -297,12 +297,12 @@ class Phase2Page(Phase2View):
             self.run_folder.clear()
 
             self.status_label.setText(
-                "La ?ltima ejecuci?n de Fase 1 "
-                "no gener? usuarios para enviar."
+                "La última ejecución de Fase 1 "
+                "no generó usuarios para enviar."
             )
 
             self.safety_info.setText(
-                "No se encontr? usuarios_enviados.xlsx. "
+                "No se encontró usuarios_enviados.xlsx. "
                 "Esto normalmente significa que no habia "
                 "cuentas nuevas pendientes y, por tanto, "
                 "Fase 2 no corresponde a esa ejecucion."
@@ -368,28 +368,28 @@ class Phase2Page(Phase2View):
 
         if manifest.exists():
             self.status_label.setText(
-                "Carpeta de Fase 1 v?lida. "
+                "Carpeta de Fase 1 válida. "
                 "Selecciona el resultado del Portal "
                 "y genera el preview."
             )
 
             if self.country == "PER":
                 self.safety_info.setText(
-                    "Se encontr? usuarios_enviados.xlsx. "
+                    "Se encontró usuarios_enviados.xlsx. "
                     "El preview NO modifica SharePoint. "
                     "La escritura real requiere "
-                    "confirmaci?n posterior."
+                    "confirmación posterior."
                 )
             else:
                 self.safety_info.setText(
-                    "Se encontr? usuarios_enviados.xlsx. "
+                    "Se encontró usuarios_enviados.xlsx. "
                     "El preview usa dry_run=True y "
                     "NO modifica SharePoint."
                 )
 
         else:
             self.status_label.setText(
-                "Esta ejecuci?n no tiene "
+                "Esta ejecución no tiene "
                 "usuarios_enviados.xlsx."
             )
 
@@ -397,7 +397,7 @@ class Phase2Page(Phase2View):
                 "La carpeta seleccionada no contiene "
                 "usuarios_enviados.xlsx. Normalmente "
                 "esto significa que esa ejecucion "
-                "no gener? cuentas para Fase 2."
+                "no generó cuentas para Fase 2."
             )
 
     def _browse_run_folder(self):
@@ -577,11 +577,11 @@ class Phase2Page(Phase2View):
                     self.run_folder,
                     self.run_folder_error,
                     (
-                        "Esta ejecuci?n no contiene "
+                        "Esta ejecución no contiene "
                         "usuarios_enviados.xlsx. "
                         "Normalmente significa que "
                         "Fase 2 no corresponde a "
-                        "esta ejecuci?n."
+                        "esta ejecución."
                     ),
                 )
 
@@ -1035,19 +1035,19 @@ class Phase2Page(Phase2View):
 
                 if not backend_ok:
                     reasons.append(
-                        "El backend marc? el preview "
+                        "El backend marcó el preview "
                         "como no seguro."
                     )
 
                 if not ready:
                     reasons.append(
-                        "El Excel remoto no est? "
+                        "El Excel remoto no está "
                         "listo para escritura."
                     )
 
                 if missing_results:
                     reasons.append(
-                        f"{missing_results} relaci?n(es) "
+                        f"{missing_results} relación(es) "
                         "sin resultado del Portal."
                     )
 
@@ -1060,13 +1060,13 @@ class Phase2Page(Phase2View):
                 if verification_errors:
                     reasons.append(
                         f"{verification_errors} error(es) "
-                        "de verificaci?n remota."
+                        "de verificación remota."
                     )
 
                 if invalid_states:
                     reasons.append(
                         f"{invalid_states} estado(s) "
-                        "remotos inv?lidos."
+                        "remotos inválidos."
                     )
 
                 safe = (
@@ -1102,7 +1102,7 @@ class Phase2Page(Phase2View):
 
                 if not backend_ok:
                     reasons.append(
-                        "El backend marc? el preview "
+                        "El backend marcó el preview "
                         "como no seguro."
                     )
 
@@ -1158,7 +1158,7 @@ class Phase2Page(Phase2View):
 
             else:
                 self.status_label.setText(
-                    "Preview requiere revisi?n. "
+                    "Preview requiere revisión. "
                     "La escritura permanece bloqueada."
                 )
 
@@ -1169,8 +1169,8 @@ class Phase2Page(Phase2View):
 
                 if not detail:
                     detail = (
-                        "- El backend no indic? "
-                        "un motivo espec?fico."
+                        "- El backend no indicó "
+                        "un motivo específico."
                     )
 
                 self.apply_gate_label.setText(
@@ -1271,7 +1271,7 @@ class Phase2Page(Phase2View):
                 )
 
                 self.status_label.setText(
-                    "El reemplazo todav?a no coincide."
+                    "El reemplazo todavía no coincide."
                 )
 
                 detail = "\n".join(
@@ -1294,7 +1294,7 @@ class Phase2Page(Phase2View):
                     self,
                     "Reemplazo no verificado",
                     (
-                        "El Excel remoto todav?a no "
+                        "El Excel remoto todavía no "
                         "coincide completamente con "
                         "el resultado de Fase 2.\n\n"
                         + detail
@@ -1325,7 +1325,7 @@ class Phase2Page(Phase2View):
                 "SharePoint NO fue modificado. "
                 "Reemplaza manualmente el Excel "
                 "remoto con la copia generada y, "
-                "despu?s, verifica el reemplazo."
+                "después, verifica el reemplazo."
             )
 
             candidate = str(
@@ -1373,7 +1373,7 @@ class Phase2Page(Phase2View):
             )
 
             self.status_label.setText(
-                "Aplicaci?n completada."
+                "Aplicación completada."
             )
 
             self.apply_gate_label.setText(
@@ -1491,19 +1491,19 @@ class Phase2Page(Phase2View):
             user_message = (
                 "No se pudo actualizar el Excel porque "
                 "SharePoint lo mantiene bloqueado para "
-                "edici?n.\n\n"
+                "edición.\n\n"
                 "Cierra el archivo en Excel Desktop, "
                 "Teams y Excel Online. Si otra persona "
                 "lo tiene abierto, tambien debe "
                 "cerrarlo.\n\n"
-                "Despu?s vuelve a generar el Preview "
+                "Después vuelve a generar el Preview "
                 "y aplica nuevamente los cambios.\n\n"
                 "El archivo remoto no fue modificado."
             )
 
         else:
             self.status_label.setText(
-                "Ocurri? un error."
+                "Ocurrió un error."
             )
 
             title = (

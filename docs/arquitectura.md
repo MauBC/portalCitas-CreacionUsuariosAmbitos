@@ -181,6 +181,20 @@ de los campos entre error, valido y neutro en las tres paginas.
 
 ## Vista y contratos de presentacion
 
+Inicio muestra el pais activo, el progreso de esta sesion y accesos a las tres
+fases. Los botones solo navegan: no ejecutan pipelines ni omiten validaciones.
+La recomendacion apunta a la primera fase no completada. Los estados y sus
+etiquetas se comparten con la barra lateral en `workflow_presentation.py`.
+El bloqueo de navegacion durante operaciones tambien cubre estos accesos.
+El progreso no se persiste ni sustituye la verificacion de SharePoint.
+
+Los dialogos muestran los mensajes como texto plano seleccionable y permiten
+copiar el diagnostico, aplicando el mismo ocultamiento de credenciales del log.
+La etiqueta de detalles distingue entre mostrar y ocultar. El estilo incluye
+foco de teclado visible y estados textuales, ademas del color.
+`test_30_experiencia_gui.py` verifica navegacion, estados por pais, bloqueo
+durante operaciones y copia de diagnosticos sin modificar el portapapeles real.
+
 Las tres fases separan la construccion visual (`app/ui/views`) de los
 controladores (`app/ui/pages`). `UsersView`, `Phase2View` y `AmbitosView`
 crean los controles sin leer ajustes, iniciar workers ni conectar acciones

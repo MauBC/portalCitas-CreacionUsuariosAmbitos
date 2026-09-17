@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from app.config.paths import PROJECT_ROOT
 
 from PySide6.QtCore import Qt, QSignalBlocker
@@ -29,6 +27,7 @@ from app.ui.pages.users_page import (
     UsersPage,
 )
 from app.ui.dialogs.app_dialog import AppDialog
+from app.ui.workflow_presentation import STEPS, STATUS_LABELS, STATUS_SYMBOLS, normalize_status
 
 
 class MainWindow(QMainWindow):
@@ -102,6 +101,7 @@ class MainWindow(QMainWindow):
         )
 
         self.setCentralWidget(root)
+        self.home_page.navigate_requested.connect(self._show_page)
 
         for page in self._operation_pages():
             page.busy_changed.connect(self._refresh_operation_state)
@@ -294,29 +294,7 @@ class MainWindow(QMainWindow):
             country
         ]["users"] = "done"
 
-        run_folder = str(
-            result.get(
-                "run_folder",
-                "",
-            )
-            or ""
-        ).strip()
-
-        has_manifest = False
-
-        if run_folder:
-            has_manifest = (
-                Path(run_folder)
-                / "usuarios_enviados.xlsx"
-            ).is_file()
-
-        self.workflow_states[
-            country
-        ]["phase2"] = (
-            "pending"
-            if has_manifest
-            else "pending"
-        )
+        self.workflow_states[country]["phase2"] = "pending"
 
         self.workflow_states[
             country
@@ -333,19 +311,10 @@ class MainWindow(QMainWindow):
             country or ""
         ).strip().upper()
 
-        status = str(
-            status or "pending"
-        ).strip().lower()
+        status = normalize_status(status)
 
         if country not in self.workflow_states:
             return
-
-        if status not in {
-            "pending",
-            "action",
-            "done",
-        }:
-            status = "pending"
 
         self.workflow_states[
             country
@@ -367,19 +336,10 @@ class MainWindow(QMainWindow):
             country or ""
         ).strip().upper()
 
-        status = str(
-            status or "pending"
-        ).strip().lower()
+        status = normalize_status(status)
 
         if country not in self.workflow_states:
             return
-
-        if status not in {
-            "pending",
-            "action",
-            "done",
-        }:
-            status = "pending"
 
         self.workflow_states[
             country
@@ -388,97 +348,16 @@ class MainWindow(QMainWindow):
         self._refresh_workflow_navigation()
 
     def _refresh_workflow_navigation(self):
-        if not hasattr(
-            self,
-            "nav_buttons",
-        ):
-            return
-
-        country = self._current_country()
-
-        states = self.workflow_states.get(
-            country,
-            {},
-        )
-
-        definitions = {
-            1: (
-                "Usuarios",
-                "users",
-            ),
-            2: (
-                "Fase 2",
-                "phase2",
-            ),
-            3: (
-                "\u00c1mbitos",
-                "ambitos",
-            ),
-        }
-
-        symbols = {
-            "pending": "\u25cb",
-            "action": "!",
-            "done": "\u2713",
-        }
-
-        tooltips = {
-            "pending":
-                "Pendiente.",
-            "action":
-                "Requiere una accion antes "
-                "de continuar.",
-            "done":
-                "Fase completada.",
-        }
-
-        for index, (
-            label,
-            key,
-        ) in definitions.items():
-
-            if index >= len(
-                self.nav_buttons
-            ):
-                continue
-
-            button = self.nav_buttons[
-                index
-            ]
-
-            status = states.get(
-                key,
-                "pending",
-            )
-
-            symbol = symbols.get(
-                status,
-                "\u25cb",
-            )
-
-            button.setText(
-                f"{symbol}  {label}"
-            )
-
-            button.setProperty(
-                "workflowStatus",
-                status,
-            )
-
-            button.setToolTip(
-                tooltips.get(
-                    status,
-                    "",
-                )
-            )
-
-            button.style().unpolish(
-                button
-            )
-
-            button.style().polish(
-                button
-            )
+        states = self.workflow_states.get(self._current_country(), {})
+        self.home_page.set_workflow(self._current_country(), states)
+        for index, label, key in STEPS:
+            button = self.nav_buttons[index]
+            status = normalize_status(states.get(key))
+            button.setText(f"{STATUS_SYMBOLS[status]}  {label}")
+            button.setProperty("workflowStatus", status)
+            button.setToolTip(STATUS_LABELS[status])
+            button.style().unpolish(button)
+            button.style().polish(button)
 
     def _show_page(
         self,
@@ -516,6 +395,7 @@ class MainWindow(QMainWindow):
     def _refresh_operation_state(self, _busy: bool):
         busy = self._operation_in_progress()
         self.country_combo.setEnabled(not busy)
+        self.home_page.setEnabled(not busy)
         for button in self.nav_buttons:
             button.setEnabled(not busy)
         if busy:
