@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
 )
+from app.services.error_report_service import redact_secrets
 
 
 class AppDialog(QDialog):
@@ -123,6 +125,8 @@ class AppDialog(QDialog):
         content.addLayout(header)
 
         message_label = QLabel(message)
+        message_label.setTextFormat(Qt.PlainText)
+        message_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         message_label.setObjectName(
             "dialogMessage"
         )
@@ -135,9 +139,10 @@ class AppDialog(QDialog):
         self.details_box = None
 
         if details:
-            details_button = QPushButton(
+            self.details_button = QPushButton(
                 "Ver detalles técnicos"
             )
+            details_button = self.details_button
             details_button.setObjectName(
                 "dialogDetailsButton"
             )
@@ -152,7 +157,7 @@ class AppDialog(QDialog):
                 True
             )
             self.details_box.setPlainText(
-                details
+                redact_secrets(details)
             )
             self.details_box.setMaximumHeight(
                 180
@@ -172,6 +177,10 @@ class AppDialog(QDialog):
             content.addWidget(
                 self.details_box
             )
+            self.copy_details_button = QPushButton("Copiar diagnóstico")
+            self.copy_details_button.setObjectName("secondaryButton")
+            self.copy_details_button.clicked.connect(self._copy_details)
+            content.addWidget(self.copy_details_button, 0, Qt.AlignLeft)
 
         buttons = QHBoxLayout()
         buttons.addStretch()
@@ -226,8 +235,16 @@ class AppDialog(QDialog):
         self.details_box.setVisible(
             not self.details_box.isVisible()
         )
+        self.details_button.setText(
+            "Ocultar detalles técnicos" if self.details_box.isVisible() else "Ver detalles técnicos"
+        )
 
         self.adjustSize()
+
+    def _copy_details(self):
+        if self.details_box is not None:
+            QApplication.clipboard().setText(self.details_box.toPlainText())
+            self.copy_details_button.setText("Diagnóstico copiado")
 
     @classmethod
     def _show(

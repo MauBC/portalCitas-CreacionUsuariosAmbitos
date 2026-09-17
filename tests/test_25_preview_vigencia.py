@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from app.ui.dialogs.app_dialog import AppDialog
+from app.config import paths
 from app.ui.pages.phase2_page import Phase2Page
 from app.ui.pages.ambitos_page import AmbitosPage
 
@@ -22,6 +23,9 @@ class PreviewFreshnessTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        patch.object(paths, "OUTPUT_ROOT", Path(temp.name)).start()
         self.pages = (Phase2Page(), AmbitosPage())
         for method in ("success", "warning", "error"):
             patch.object(AppDialog, method).start()

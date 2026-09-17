@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import traceback
+from app.services.run_history_service import HistorySession
 
 from PySide6.QtCore import (
     QObject,
@@ -46,6 +47,8 @@ class Phase2Worker(QObject):
 
     @Slot()
     def run(self):
+        history = HistorySession(phase=2, country=self.country, mode=self.mode,
+                                 inputs={"run_folder": self.run_folder, "portal_result": self.portal_result}, notify=self.progress.emit)
         try:
             if self.mode not in {
                 "preview",
@@ -68,12 +71,14 @@ class Phase2Worker(QObject):
                     f"Pais no soportado: {self.country}"
                 )
 
+            history.finish(result)
             self.finished.emit(
                 self.mode,
                 result,
             )
 
         except Exception as exc:
+            history.fail()
             self.failed.emit(
                 self.mode,
                 f"{type(exc).__name__}: {exc}",

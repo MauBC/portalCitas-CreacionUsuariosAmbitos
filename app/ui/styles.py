@@ -456,3 +456,47 @@ QLineEdit[valid="true"] {
 
 
 """
+
+
+APP_STYLE += """
+QLabel#workflowBadge {
+    border-radius: 6px;
+    padding: 5px 10px;
+    background: #EEF1EF;
+    color: #445149;
+    font-size: 12px;
+    font-weight: 600;
+}
+QLabel#workflowBadge[workflowStatus="done"] {
+    background: #EAF7EF;
+    color: #176236;
+}
+QLabel#workflowBadge[workflowStatus="action"] {
+    background: #FFF3E8;
+    color: #8B460C;
+}
+QPushButton:focus {
+    border: 2px solid #1F7A46;
+}
+QPushButton:disabled {
+    color: #7C8780;
+}
+QTableWidget, QListWidget {
+    background: #FFFFFF;
+    alternate-background-color: #F5F7F6;
+    border: 1px solid #DDE5E0;
+    border-radius: 6px;
+    selection-background-color: #EAF7EF;
+    selection-color: #176236;
+}
+QTableWidget::item, QListWidget::item {
+    padding: 7px;
+}
+QHeaderView::section {
+    background: #EEF1EF;
+    color: #445149;
+    border: none;
+    padding: 8px;
+    font-weight: 600;
+}
+"""

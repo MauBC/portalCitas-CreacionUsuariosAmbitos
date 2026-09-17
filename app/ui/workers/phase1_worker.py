@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import traceback
+from app.services.run_history_service import HistorySession
 
 from PySide6.QtCore import (
     QObject,
@@ -41,6 +42,8 @@ class Phase1Worker(QObject):
 
     @Slot()
     def run(self):
+        history = HistorySession(phase=1, country=self.country, mode="users",
+                                 inputs={"file_path": self.file_path, "source_type": self.source_type}, notify=self.progress.emit)
         try:
             if self.country == "SLV":
                 self.progress.emit(
@@ -91,11 +94,13 @@ class Phase1Worker(QObject):
                     f"Pais no soportado: {self.country}"
                 )
 
+            history.finish(result)
             self.finished.emit(
                 result
             )
 
         except Exception as exc:
+            history.fail()
             self.failed.emit(
                 f"{type(exc).__name__}: {exc}",
                 traceback.format_exc(),

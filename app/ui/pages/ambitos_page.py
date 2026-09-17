@@ -957,16 +957,16 @@ class AmbitosPage(AmbitosView):
         ):
             user_message = (
                 "El Excel publicado en SharePoint "
-                "todav?a no contiene registros con "
+                "todavía no contiene registros con "
                 "creado=1.\n\n"
                 "Si generaste una copia local en "
                 "Fase 2, reemplaza primero el Excel "
                 "en SharePoint y vuelve a ejecutar "
-                "el preview de ?mbitos."
+                "el preview de ámbitos."
             )
 
             title = (
-                "Fase 2 a?n no est? consolidada"
+                "Fase 2 aún no está consolidada"
             )
 
         else:

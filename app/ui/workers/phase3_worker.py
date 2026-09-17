@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import traceback
+from app.services.run_history_service import HistorySession
 
 from PySide6.QtCore import (
     QObject,
@@ -46,6 +47,8 @@ class Phase3Worker(QObject):
 
     @Slot()
     def run(self):
+        history = HistorySession(phase=3, country=self.country, mode=self.mode,
+                                 inputs={"valid_report_path": self.valid_report_path, "review_path": self.review_path}, notify=self.progress.emit)
         try:
             if self.mode == "preview":
                 result = self._run_preview()
@@ -58,12 +61,14 @@ class Phase3Worker(QObject):
                     f"Modo Fase 3 invalido: {self.mode}"
                 )
 
+            history.finish(result)
             self.finished.emit(
                 self.mode,
                 result,
             )
 
         except Exception as exc:
+            history.fail()
             self.failed.emit(
                 self.mode,
                 f"{type(exc).__name__}: {exc}",

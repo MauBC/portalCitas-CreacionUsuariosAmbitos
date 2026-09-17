@@ -136,7 +136,7 @@ class UsersPage(UsersView):
             )
 
             self.description.setText(
-                "Valida los registros de Per? "
+                "Valida los registros de Perú "
                 "desde el Excel de proveedores y "
                 "genera la plantilla oficial de usuarios."
             )
@@ -501,10 +501,10 @@ class UsersPage(UsersView):
             self,
             "Fase 1 completada",
             (
-                "El procesamiento termin? "
+                "El procesamiento terminó "
                 "correctamente.\n\n"
                 f"Registros: {total}\n"
-                f"V?lidos: {valid}\n"
+                f"Válidos: {valid}\n"
                 f"Errores: {errors}\n"
                 f"Usuarios: {users}"
             ),
@@ -527,7 +527,7 @@ class UsersPage(UsersView):
         self.run_button.setEnabled(True)
 
         self.status_label.setText(
-            "Ocurri? un error durante el proceso."
+            "Ocurrió un error durante el proceso."
         )
 
         hint = error_guidance(error_detail, full_trace, mode="users")
