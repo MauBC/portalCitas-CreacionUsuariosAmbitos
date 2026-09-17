@@ -5,6 +5,7 @@ import sys
 from threading import Event
 from time import monotonic
 import unittest
+import tempfile
 from unittest.mock import patch
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import QApplication
 from shiboken6 import isValid
 
 from app.ui.dialogs.app_dialog import AppDialog
+from app.config import paths
 from app.ui.main_window import MainWindow
 
 
@@ -22,6 +24,11 @@ class OperationSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+        temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(temp.cleanup)
+        output_patch = patch.object(paths, "OUTPUT_ROOT", Path(temp.name))
+        output_patch.start()
+        cls.addClassCleanup(output_patch.stop)
 
     def wait_until(self, predicate):
         deadline = monotonic() + 5

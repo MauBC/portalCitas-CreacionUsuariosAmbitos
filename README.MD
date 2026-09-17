@@ -13,6 +13,16 @@ python run_gui.py
 
 La GUI integra Usuarios, Resultado del Portal y Ambitos, con seleccion de pais y navegacion guiada. `run.py` conserva la interfaz legacy en CustomTkinter.
 
+Desde **Historial** puedes consultar nuevas ejecuciones de la GUI, abrir sus
+archivos y recuperar entradas. Para trabajos anteriores al historial, usa
+**Recuperar carpeta anterior** y confirma el pais. Se requiere un nuevo preview;
+el historial no acredita el estado actual de SharePoint. Revisa siempre el
+enlace compartido, que se toma de la configuracion actual.
+
+**Conexion** comprueba PostgreSQL y metadatos de SharePoint cuando pulsas el
+boton. Activa la VPN primero. No modifica datos ni comprueba permisos de
+escritura sobre cada archivo.
+
 Consultar [arquitectura y mantenimiento](docs/arquitectura.md) para el mapa de componentes, contratos y convenciones de desarrollo.
 
 Para instalar las dependencias de ejecucion:

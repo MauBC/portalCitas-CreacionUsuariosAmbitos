@@ -481,4 +481,22 @@ QPushButton:focus {
 QPushButton:disabled {
     color: #7C8780;
 }
+QTableWidget, QListWidget {
+    background: #FFFFFF;
+    alternate-background-color: #F5F7F6;
+    border: 1px solid #DDE5E0;
+    border-radius: 6px;
+    selection-background-color: #EAF7EF;
+    selection-color: #176236;
+}
+QTableWidget::item, QListWidget::item {
+    padding: 7px;
+}
+QHeaderView::section {
+    background: #EEF1EF;
+    color: #445149;
+    border: none;
+    padding: 8px;
+    font-weight: 600;
+}
 """

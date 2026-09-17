@@ -831,6 +831,12 @@ class Phase2Page(Phase2View):
                 "¿Deseas continuar?"
             )
 
+        presentation = Phase2Presentation.from_backend(self.country, "preview", self.last_preview)
+        summary = "\n".join(f"{metric.title}: {metric.value}" for metric in presentation.metrics)
+        message = (
+            f"País: {self.country}\nCarpeta: {self.run_folder.text().strip()}\n\n"
+            f"{summary}\n{presentation.detail}\n\n{message}"
+        )
         confirmed = AppDialog.confirm(
             self,
             title,

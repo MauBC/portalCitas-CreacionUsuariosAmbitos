@@ -28,6 +28,9 @@ from app.ui.pages.users_page import (
 )
 from app.ui.dialogs.app_dialog import AppDialog
 from app.ui.workflow_presentation import STEPS, STATUS_LABELS, STATUS_SYMBOLS, normalize_status
+from app.ui.pages.history_page import HistoryPage
+from app.ui.pages.connection_page import ConnectionPage
+from app.services.run_history_service import recovery_inputs
 
 
 class MainWindow(QMainWindow):
@@ -53,6 +56,8 @@ class MainWindow(QMainWindow):
         self.users_page = UsersPage()
         self.phase2_page = Phase2Page()
         self.ambitos_page = AmbitosPage()
+        self.history_page = HistoryPage()
+        self.connection_page = ConnectionPage()
 
         self.workflow_states = {
             "PER": {
@@ -79,6 +84,9 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(
             self.ambitos_page
         )
+        self.pages.addWidget(self.history_page)
+        self.pages.addWidget(self.connection_page)
+        self.history_page.resume_requested.connect(self._restore_execution)
 
         root = QWidget()
 
@@ -178,6 +186,8 @@ class MainWindow(QMainWindow):
             ("Usuarios", 1),
             ("Fase 2", 2),
             ("Ámbitos", 3),
+            ("Historial", 4),
+            ("Conexión", 5),
         ]
 
         for text, index in navigation:
@@ -269,6 +279,10 @@ class MainWindow(QMainWindow):
         self.ambitos_page.set_country(
             country
         )
+        self.history_page.country = country
+        self.connection_page.set_country(country)
+        if self.pages.currentIndex() == 4:
+            self.history_page.refresh()
 
         self._refresh_workflow_navigation()
 
@@ -369,6 +383,8 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentIndex(
             index
         )
+        if index == 4:
+            self.history_page.refresh()
 
         for current, button in enumerate(
             self.nav_buttons
@@ -386,7 +402,7 @@ class MainWindow(QMainWindow):
             )
 
     def _operation_pages(self):
-        return (self.users_page, self.phase2_page, self.ambitos_page)
+        return (self.users_page, self.phase2_page, self.ambitos_page, self.connection_page)
 
     def _operation_in_progress(self) -> bool:
         # Keep the guard until queued results and thread cleanup have completed.
@@ -396,6 +412,7 @@ class MainWindow(QMainWindow):
         busy = self._operation_in_progress()
         self.country_combo.setEnabled(not busy)
         self.home_page.setEnabled(not busy)
+        self.history_page.setEnabled(not busy)
         for button in self.nav_buttons:
             button.setEnabled(not busy)
         if busy:
@@ -415,3 +432,42 @@ class MainWindow(QMainWindow):
             )
             return
         super().closeEvent(event)
+
+    def _restore_execution(self, record):
+        if self._operation_in_progress() or record.get("country") not in {"PER", "SLV"}:
+            return
+        try:
+            inputs = recovery_inputs(record)
+        except OSError:
+            inputs = {}
+        if not any(key in inputs for key in ("run_folder", "valid_report_path", "file_path")):
+            AppDialog.warning(self, "Entradas no disponibles", "Los archivos necesarios ya no están en sus rutas originales. Selecciónalos manualmente o recupera otra carpeta.")
+            return
+        country = record["country"]
+        self.country_combo.setCurrentIndex(self.country_combo.findData(country))
+        self.users_page.set_country(country)
+        self.phase2_page._invalidate_preview()
+        self.ambitos_page._invalidate_preview()
+        self.phase2_page.run_folder.clear()
+        self.phase2_page.portal_result.clear()
+        self.ambitos_page.valid_report.clear()
+        self.ambitos_page.review_path.clear()
+        self.workflow_states[country] = {"users": "pending", "phase2": "pending", "ambitos": "pending"}
+        self._refresh_workflow_navigation()
+        self.phase2_page.run_folder.setText(inputs.get("run_folder", ""))
+        self.phase2_page.portal_result.setText(inputs.get("portal_result", ""))
+        self.ambitos_page.valid_report.setText(inputs.get("valid_report_path", ""))
+        self.ambitos_page.review_path.setText(inputs.get("review_path", ""))
+        if record["phase"] == 3 and "valid_report_path" in inputs:
+            index = 3
+        elif "run_folder" in inputs:
+            index = 2
+        elif "valid_report_path" in inputs:
+            index = 3
+        else:
+            self.users_page.set_country(country)
+            self.users_page.per_source_combo.setCurrentIndex(1)
+            self.users_page.per_file.setText(inputs["file_path"])
+            index = 1
+        self._show_page(index)
+        self.statusBar().showMessage("Entradas recuperadas. Revisa el país, los archivos y el enlace de SharePoint. Genera un nuevo preview antes de continuar.")

@@ -181,6 +181,36 @@ de los campos entre error, valido y neutro en las tres paginas.
 
 ## Vista y contratos de presentacion
 
+### Historial, recuperacion y conexion
+
+Las nuevas ejecuciones de los workers GUI registran fase, pais, modo, fechas,
+estado local y rutas en `salidas/.history`. Cada operacion tiene un identificador
+independiente y actualiza su JSON mediante reemplazo atomico. No se guardan
+filas de negocio, credenciales ni enlaces compartidos. Un fallo al escribir el
+historial avisa mediante el progreso sin convertir una operacion correcta en
+fallida. Los registros sin cierre se presentan como tales, sin asumir exito.
+Las ejecuciones por CLI no se registran automaticamente en este historial.
+
+Historial filtra por el pais seleccionado. Permite abrir archivos existentes,
+recuperar entradas de registros y seleccionar una carpeta antigua de Fase 1;
+para carpetas antiguas el usuario confirma el pais. Las rutas se comprueban de
+nuevo al recuperar. Nunca se restauran previews ni verificaciones remotas:
+las fases quedan pendientes y exigen un nuevo preview. Se mantiene el enlace
+configurado actualmente, que el usuario debe revisar antes de ejecutar.
+Los archivos de salida no se modifican al recuperar una ejecucion.
+
+Conexion ejecuta bajo demanda un `SELECT 1` en PostgreSQL y consultas de
+metadatos del sitio (PER) o lista (SLV) de SharePoint. Usa un worker con el mismo
+bloqueo de cambio de pais y cierre que las fases. No prueba permisos de escritura
+ni garantiza acceso a cada Excel. Los errores de un servicio no impiden comprobar
+el otro. Antes del Apply de Fase 2, la confirmacion muestra pais, carpeta y los
+conteos del preview usando el adaptador de presentacion existente.
+
+`test_31_historial_conexion.py` cubre persistencia, registros corruptos, fallos de
+disco, carpetas antiguas y comprobaciones de solo lectura.
+`test_32_recuperacion_gui.py` cubre recuperacion sin aprobaciones previas,
+archivos ausentes, desbloqueo del worker y resumen antes de aplicar.
+
 Inicio muestra el pais activo, el progreso de esta sesion y accesos a las tres
 fases. Los botones solo navegan: no ejecutan pipelines ni omiten validaciones.
 La recomendacion apunta a la primera fase no completada. Los estados y sus
